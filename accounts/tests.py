@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.urls import reverse
 from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -72,3 +74,39 @@ class SignupConfirmationTests(APITestCase):
         user.refresh_from_db()
         self.assertTrue(user.is_active)
         self.assertIsNotNone(user.account_confirmed_at)
+
+
+class LoginThrottleTests(APITestCase):
+    """Regression test for rate limiting on the login endpoint."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(
+            email="throttle-guard@braziliansushi.com",
+            username="throttleguard",
+            password="StrongPass123!",
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_login_is_throttled_after_repeated_attempts(self):
+        url = reverse("token_obtain_pair")
+
+        for _ in range(5):
+            response = self.client.post(
+                url, {"email": self.user.email, "password": "wrong-password"}, format="json"
+            )
+            self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        blocked_response = self.client.post(
+            url, {"email": self.user.email, "password": "wrong-password"}, format="json"
+        )
+        self.assertEqual(blocked_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # A correct password is blocked too — throttling protects the
+        # endpoint, not just failed attempts.
+        valid_login_response = self.client.post(
+            url, {"email": self.user.email, "password": "StrongPass123!"}, format="json"
+        )
+        self.assertEqual(valid_login_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)

@@ -52,6 +52,10 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         if vegetarian == "true":
             queryset = queryset.filter(vegetarian=True)
 
-        if self.request.method not in permissions.SAFE_METHODS:
+        # Hidden items are excluded based on who's asking, not on the HTTP
+        # method — a staff member doing a plain GET (e.g. loading the admin
+        # dashboard's menu manager) must see hidden items too, not only when
+        # they happen to be writing.
+        if self.request.user.is_staff:
             return queryset
         return queryset.exclude(availability=MenuItem.Availability.HIDDEN)

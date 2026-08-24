@@ -36,6 +36,12 @@ class Order(models.Model):
         DELIVERED = "delivered", "Delivered"
         CANCELLED = "cancelled", "Cancelled"
 
+    class PaymentStatus(models.TextChoices):
+        NOT_REQUIRED = "not_required", "Not required"
+        PENDING = "pending", "Pending payment"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Payment failed"
+
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="orders")
     delivery_address = models.ForeignKey("accounts.Address", null=True, blank=True, on_delete=models.SET_NULL, related_name="orders")
     coupon = models.ForeignKey("marketing.Coupon", null=True, blank=True, on_delete=models.SET_NULL, related_name="orders")
@@ -50,6 +56,8 @@ class Order(models.Model):
     notes = models.TextField(blank=True)
     allergy_notes = models.TextField(blank=True)
     notification_preference = models.CharField(max_length=10, choices=NotificationPreference.choices, default=NotificationPreference.BOTH)
+    payment_status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.NOT_REQUIRED)
+    stripe_checkout_session_id = models.CharField(max_length=255, blank=True)
     subtotal = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     delivery_fee = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=9, decimal_places=2, default=0)

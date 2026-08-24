@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -25,14 +26,20 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+    throttle_classes = [ScopedRateThrottle]
 
 
 class LoginView(TokenObtainPairView):
     serializer_class = BrazilianSushiTokenObtainPairSerializer
+    throttle_scope = "auth"
+    throttle_classes = [ScopedRateThrottle]
 
 
 class ConfirmAccountView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+    throttle_classes = [ScopedRateThrottle]
 
     def post(self, request):
         serializer = ConfirmAccountSerializer(data=request.data)
@@ -55,6 +62,8 @@ class ConfirmAccountView(APIView):
 
 class ResendConfirmationView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+    throttle_classes = [ScopedRateThrottle]
 
     def post(self, request):
         serializer = ResendConfirmationSerializer(data=request.data)

@@ -155,3 +155,121 @@ class AuthenticatedCheckoutTests(APITestCase):
         self.assertEqual(order.notification_preference, User.NotificationPreference.EMAIL)
         self.assertTrue(response.data["has_kitchen_notes"])
         self.assertTrue(response.data["has_allergy_alert"])
+
+
+class OrderTamperingTests(APITestCase):
+    """Regression tests for the mass-assignment fix: a customer must never be
+    able to rewrite their own order's price, status, or tracking token
+    directly through the generic detail endpoint."""
+
+    def setUp(self):
+        self.customer = User.objects.create_user(
+            email="tamper@braziliansushi.com",
+            username="tamperguard",
+            password="StrongPass123!",
+        )
+        category = Category.objects.create(name="Nigiri", slug="tamper-nigiri")
+        self.menu_item = MenuItem.objects.create(
+            category=category,
+            name="Tuna Nigiri",
+            slug="tuna-nigiri-tamper",
+            short_description="Fresh tuna",
+            price=Decimal("14.00"),
+        )
+        self.order = Order.objects.create(
+            customer=self.customer,
+            order_type=Order.OrderType.PICKUP,
+            subtotal=Decimal("14.00"),
+            total=Decimal("14.00"),
+        )
+        self.order.items.create(
+            menu_item=self.menu_item,
+            quantity=1,
+            unit_price=Decimal("14.00"),
+            line_total=Decimal("14.00"),
+        )
+        self.client.force_authenticate(self.customer)
+
+    def test_owner_cannot_patch_total_or_status(self):
+        url = reverse("order-detail", args=[self.order.id])
+        response = self.client.patch(
+            url,
+            {"total": "0.01", "status": Order.Status.DELIVERED, "discount_amount": "13.99"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.total, Decimal("14.00"))
+        self.assertEqual(self.order.status, Order.Status.RECEIVED)
+
+    def test_owner_cannot_put_order(self):
+        url = reverse("order-detail", args=[self.order.id])
+        response = self.client.put(url, {"total": "0.01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_owner_cannot_delete_order(self):
+        url = reverse("order-detail", args=[self.order.id])
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(Order.objects.filter(pk=self.order.pk).exists())
+
+    def test_staff_still_updates_status_through_dedicated_action(self):
+        admin = User.objects.create_superuser(
+            email="tamper-admin@braziliansushi.com",
+            username="tamperadmin",
+            password="StrongPass123!",
+        )
+        self.client.force_authenticate(admin)
+        url = reverse("order-update-status", args=[self.order.id])
+
+        response = self.client.post(url, {"status": Order.Status.CONFIRMED}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CONFIRMED)
+
+
+class CheckoutValidationTests(APITestCase):
+    def test_checkout_rejects_unknown_menu_item_with_400_not_500(self):
+        response = self.client.post(
+            reverse("order-list"),
+            {
+                "order_type": Order.OrderType.PICKUP,
+                "guest_name": "Guest",
+                "guest_email": "guest-invalid@braziliansushi.com",
+                "guest_phone": "5551234567",
+                "notification_preference": "email",
+                "items": [{"menu_item_id": 999999, "quantity": 1}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_checkout_rejects_sold_out_item(self):
+        category = Category.objects.create(name="Combos", slug="tamper-combos")
+        menu_item = MenuItem.objects.create(
+            category=category,
+            name="Sold Out Combo",
+            slug="sold-out-combo",
+            short_description="Unavailable",
+            price=Decimal("20.00"),
+            availability=MenuItem.Availability.SOLD_OUT,
+        )
+
+        response = self.client.post(
+            reverse("order-list"),
+            {
+                "order_type": Order.OrderType.PICKUP,
+                "guest_name": "Guest",
+                "guest_email": "guest-soldout@braziliansushi.com",
+                "guest_phone": "5551234567",
+                "notification_preference": "email",
+                "items": [{"menu_item_id": menu_item.id, "quantity": 1}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

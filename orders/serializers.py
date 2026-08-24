@@ -1,8 +1,7 @@
 from rest_framework import serializers
 
-from menu.models import MenuItem, MenuOption
-
 from .models import DeliveryZone, Order, OrderItem, OrderItemSelection, OrderStatusEvent
+from .services import create_order
 
 
 class DeliveryZoneSerializer(serializers.ModelSerializer):
@@ -68,36 +67,7 @@ class CreateOrderSerializer(serializers.ModelSerializer):
         items_data = validated_data.pop("items", [])
         request = self.context["request"]
         user = request.user if request.user.is_authenticated else None
-        order = Order.objects.create(customer=user, **validated_data)
-        subtotal = 0
-        for item_data in items_data:
-            menu_item = MenuItem.objects.get(pk=item_data["menu_item_id"])
-            option_ids = item_data.get("option_ids", [])
-            selected_options = list(MenuOption.objects.filter(id__in=option_ids))
-            extra_cost = sum(option.price_delta for option in selected_options)
-            unit_price = menu_item.price + extra_cost
-            line_total = unit_price * item_data["quantity"]
-            order_item = OrderItem.objects.create(
-                order=order,
-                menu_item=menu_item,
-                quantity=item_data["quantity"],
-                unit_price=unit_price,
-                line_total=line_total,
-                special_request=item_data.get("special_request", ""),
-            )
-            for option in selected_options:
-                OrderItemSelection.objects.create(order_item=order_item, option=option, price_delta=option.price_delta)
-            subtotal += line_total
-
-        if order.delivery_zone and order.order_type == Order.OrderType.DELIVERY:
-            order.delivery_fee = order.delivery_zone.fee
-            order.estimated_minutes = order.delivery_zone.average_minutes
-
-        order.subtotal = subtotal
-        order.total = subtotal + order.delivery_fee - order.discount_amount
-        order.save()
-        OrderStatusEvent.objects.create(order=order, status=order.status, note="Order created")
-        return order
+        return create_order(validated_data, items_data, user)
 
 
 class OrderItemSelectionSerializer(serializers.ModelSerializer):
@@ -133,6 +103,32 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = "__all__"
+        # Every field except the customer-editable ones (notes, allergy_notes)
+        # is derived server-side. This is a deliberate allow-list, not an
+        # oversight: OrderViewSet also disables PUT/PATCH/DELETE entirely
+        # (see http_method_names below), so this list is a second, independent
+        # layer in case the serializer is ever reused by a future writable view.
+        read_only_fields = (
+            "customer",
+            "delivery_address",
+            "coupon",
+            "delivery_zone",
+            "tracking_token",
+            "status",
+            "subtotal",
+            "delivery_fee",
+            "discount_amount",
+            "total",
+            "estimated_minutes",
+            "confirmed_at",
+            "preparation_started_at",
+            "dispatched_at",
+            "completed_at",
+            "created_at",
+            "updated_at",
+            "payment_status",
+            "stripe_checkout_session_id",
+        )
 
     def get_has_kitchen_notes(self, obj):
         return bool((obj.notes or "").strip() or (obj.allergy_notes or "").strip())
