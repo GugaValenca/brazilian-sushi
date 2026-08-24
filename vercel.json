@@ -16,7 +16,7 @@
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|admin/).*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
@@ -28,29 +28,26 @@
       ]
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/asgi.py"
+      "source": "/api/:path*",
+      "destination": "/api/asgi.py"
     },
     {
-      "src": "/admin/(.*)",
-      "dest": "/api/asgi.py"
+      "source": "/admin/:path*",
+      "destination": "/api/asgi.py"
     },
     {
-      "src": "/static/(.*)",
-      "dest": "/api/asgi.py"
+      "source": "/static/:path*",
+      "destination": "/api/asgi.py"
     },
     {
-      "src": "/media/(.*)",
-      "dest": "/api/asgi.py"
+      "source": "/media/:path*",
+      "destination": "/api/asgi.py"
     },
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/((?!api/|admin/|static/|media/).*)",
+      "destination": "/index.html"
     }
   ]
 }
