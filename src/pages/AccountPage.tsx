@@ -272,11 +272,11 @@ const AccountPage = () => {
               ) : (
                 <>
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <input value={profileForm.first_name} onChange={(e) => setProfileForm((c) => ({ ...c, first_name: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="First name" />
-                    <input value={profileForm.last_name} onChange={(e) => setProfileForm((c) => ({ ...c, last_name: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Last name" />
+                    <input aria-label="First name" value={profileForm.first_name} onChange={(e) => setProfileForm((c) => ({ ...c, first_name: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="First name" />
+                    <input aria-label="Last name" value={profileForm.last_name} onChange={(e) => setProfileForm((c) => ({ ...c, last_name: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Last name" />
                   </div>
-                  <input value={user.email} disabled className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm text-muted-foreground" />
-                  <input value={profileForm.phone_number} onChange={(e) => setProfileForm((c) => ({ ...c, phone_number: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Phone" />
+                  <input aria-label="Email (cannot be changed)" value={user.email} disabled className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm text-muted-foreground" />
+                  <input aria-label="Phone" value={profileForm.phone_number} onChange={(e) => setProfileForm((c) => ({ ...c, phone_number: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Phone" />
                   <div className="grid sm:grid-cols-3 gap-3">
                     {([["sms", "SMS"], ["email", "Email"], ["both", "SMS + Email"]] as const).map(([value, label]) => (
                       <button key={value} type="button" onClick={() => setProfileForm((c) => ({ ...c, notification_preference: value }))} className={`rounded-xl border px-4 py-3 text-sm font-medium ${profileForm.notification_preference === value ? "border-primary bg-primary/5" : "border-border"}`}>{label}</button>
@@ -301,14 +301,14 @@ const AccountPage = () => {
                 ))}
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
-                <input value={addressForm.label} onChange={(e) => setAddressForm((c) => ({ ...c, label: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Label" />
-                <input value={addressForm.recipient_name} onChange={(e) => setAddressForm((c) => ({ ...c, recipient_name: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Recipient name" />
-                <input value={addressForm.phone_number} onChange={(e) => setAddressForm((c) => ({ ...c, phone_number: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Phone" />
-                <input value={addressForm.line_1} onChange={(e) => setAddressForm((c) => ({ ...c, line_1: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Address line 1" />
-                <input value={addressForm.line_2} onChange={(e) => setAddressForm((c) => ({ ...c, line_2: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Address line 2" />
-                <input value={addressForm.city} onChange={(e) => setAddressForm((c) => ({ ...c, city: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="City" />
-                <input value={addressForm.state} onChange={(e) => setAddressForm((c) => ({ ...c, state: e.target.value.toUpperCase() }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="State" maxLength={2} />
-                <input value={addressForm.postal_code} onChange={(e) => setAddressForm((c) => ({ ...c, postal_code: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Postal code" />
+                <input aria-label="Address label" value={addressForm.label} onChange={(e) => setAddressForm((c) => ({ ...c, label: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Label" />
+                <input aria-label="Recipient name" value={addressForm.recipient_name} onChange={(e) => setAddressForm((c) => ({ ...c, recipient_name: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Recipient name" />
+                <input aria-label="Phone" value={addressForm.phone_number} onChange={(e) => setAddressForm((c) => ({ ...c, phone_number: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Phone" />
+                <input aria-label="Address line 1" value={addressForm.line_1} onChange={(e) => setAddressForm((c) => ({ ...c, line_1: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Address line 1" />
+                <input aria-label="Address line 2" value={addressForm.line_2} onChange={(e) => setAddressForm((c) => ({ ...c, line_2: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Address line 2" />
+                <input aria-label="City" value={addressForm.city} onChange={(e) => setAddressForm((c) => ({ ...c, city: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="City" />
+                <input aria-label="State" value={addressForm.state} onChange={(e) => setAddressForm((c) => ({ ...c, state: e.target.value.toUpperCase() }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="State" maxLength={2} />
+                <input aria-label="Postal code" value={addressForm.postal_code} onChange={(e) => setAddressForm((c) => ({ ...c, postal_code: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Postal code" />
               </div>
               <button type="button" onClick={() => createAddressMutation.mutate()} disabled={createAddressMutation.isPending} className="border border-primary/30 px-6 py-3 rounded-lg font-semibold disabled:opacity-70">{createAddressMutation.isPending ? "Saving..." : "Add Address"}</button>
             </section>

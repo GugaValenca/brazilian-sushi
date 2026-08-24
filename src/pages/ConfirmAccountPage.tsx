@@ -117,9 +117,11 @@ const ConfirmAccountPage = () => {
                 </div>
               </div>
               <div className="space-y-3">
-                <label className="text-sm font-medium block">Email</label>
+                <label htmlFor="confirm-account-email" className="text-sm font-medium block">Email</label>
                 <input
+                  id="confirm-account-email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@email.com"

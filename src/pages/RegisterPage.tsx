@@ -103,39 +103,39 @@ const RegisterPage = () => {
         >
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium block mb-2">First name</label>
-              <input required value={form.first_name} onChange={(e) => updateField("first_name", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+              <label htmlFor="register-first-name" className="text-sm font-medium block mb-2">First name</label>
+              <input id="register-first-name" required autoComplete="given-name" value={form.first_name} onChange={(e) => updateField("first_name", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
             </div>
             <div>
-              <label className="text-sm font-medium block mb-2">Last name</label>
-              <input required value={form.last_name} onChange={(e) => updateField("last_name", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">Username</label>
-              <input required value={form.username} onChange={(e) => updateField("username", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-2">Phone</label>
-              <input required value={form.phone_number} onChange={(e) => updateField("phone_number", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+              <label htmlFor="register-last-name" className="text-sm font-medium block mb-2">Last name</label>
+              <input id="register-last-name" required autoComplete="family-name" value={form.last_name} onChange={(e) => updateField("last_name", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium block mb-2">Email</label>
-              <input required type="email" value={form.email} onChange={(e) => updateField("email", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+              <label htmlFor="register-username" className="text-sm font-medium block mb-2">Username</label>
+              <input id="register-username" required autoComplete="username" value={form.username} onChange={(e) => updateField("username", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
             </div>
             <div>
-              <label className="text-sm font-medium block mb-2">Password</label>
-              <input required type="password" minLength={8} value={form.password} onChange={(e) => updateField("password", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+              <label htmlFor="register-phone" className="text-sm font-medium block mb-2">Phone</label>
+              <input id="register-phone" required type="tel" autoComplete="tel" value={form.phone_number} onChange={(e) => updateField("phone_number", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="register-email" className="text-sm font-medium block mb-2">Email</label>
+              <input id="register-email" required type="email" autoComplete="email" value={form.email} onChange={(e) => updateField("email", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="register-password" className="text-sm font-medium block mb-2">Password</label>
+              <input id="register-password" required type="password" minLength={8} autoComplete="new-password" value={form.password} onChange={(e) => updateField("password", e.target.value)} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-2">Preferred notifications</label>
+            <span className="text-sm font-medium block mb-2">Preferred notifications</span>
             <div className="grid sm:grid-cols-3 gap-3">
               {([
                 ["sms", "SMS"],

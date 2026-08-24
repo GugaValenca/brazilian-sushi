@@ -72,10 +72,12 @@ const LoginPage = () => {
           className="bg-card border border-border rounded-2xl p-8 space-y-5"
         >
           <div>
-            <label className="text-sm font-medium block mb-2">Email</label>
+            <label htmlFor="login-email" className="text-sm font-medium block mb-2">Email</label>
             <input
+              id="login-email"
               type="email"
               required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
@@ -83,10 +85,12 @@ const LoginPage = () => {
             />
           </div>
           <div>
-            <label className="text-sm font-medium block mb-2">Password</label>
+            <label htmlFor="login-password" className="text-sm font-medium block mb-2">Password</label>
             <input
+              id="login-password"
               type="password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"

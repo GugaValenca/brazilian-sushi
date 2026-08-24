@@ -1,6 +1,11 @@
 import { apiRequest, type PaginatedResponse } from "@/lib/api";
 import type { OrderResponse } from "@/lib/catalog";
 
+export interface DailyRevenuePoint {
+  date: string;
+  revenue: string;
+}
+
 export interface StaffOrderSummary {
   received: number;
   confirmed: number;
@@ -10,6 +15,9 @@ export interface StaffOrderSummary {
   delivered: number;
   pickup_orders: number;
   delivery_orders: number;
+  revenue_last_7_days: string;
+  daily_revenue: DailyRevenuePoint[];
+  average_delivery_minutes: number | null;
 }
 
 export interface StaffCustomer {

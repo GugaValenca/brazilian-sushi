@@ -69,6 +69,26 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-display;
   }
+
+  /* Guarantees a visible, on-brand focus ring on every interactive element,
+     including the plain <button>/<a> elements throughout the app that don't
+     go through the shared Button component (which already styles its own
+     focus-visible state). Keyboard users must always be able to see where
+     focus is. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @layer utilities {

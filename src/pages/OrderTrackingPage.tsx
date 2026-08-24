@@ -29,6 +29,7 @@ const OrderTrackingPage = () => {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order") ?? "";
   const token = searchParams.get("token") ?? "";
+  const paymentJustSucceeded = searchParams.get("payment") === "success";
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["track-order", orderId, token],
@@ -50,6 +51,15 @@ const OrderTrackingPage = () => {
           title="Track Your Order"
           subtitle="Follow each step of your order, from confirmation to pickup or delivery."
         />
+
+        {paymentJustSucceeded && (
+          <div
+            role="status"
+            className="max-w-3xl mx-auto mb-8 rounded-2xl border border-primary/30 bg-primary/10 p-4 text-sm text-center font-medium"
+          >
+            Payment confirmed — thank you! Your order is on its way to the kitchen.
+          </div>
+        )}
 
         {!orderId || !token ? (
           <div className="bg-card border border-border rounded-2xl p-8 text-center">

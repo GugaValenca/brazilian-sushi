@@ -120,10 +120,12 @@ const ContactPage = () => {
             ) : (
               <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-6 md:p-8 space-y-5">
                 <div>
-                  <label className="text-sm font-medium text-foreground block mb-1.5">Name</label>
+                  <label htmlFor="contact-name" className="text-sm font-medium text-foreground block mb-1.5">Name</label>
                   <input
+                    id="contact-name"
                     required
                     type="text"
+                    autoComplete="name"
                     value={formData.name}
                     onChange={(e) => handleFieldChange("name", e.target.value)}
                     placeholder="Your name"
@@ -131,10 +133,12 @@ const ContactPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground block mb-1.5">Email</label>
+                  <label htmlFor="contact-email" className="text-sm font-medium text-foreground block mb-1.5">Email</label>
                   <input
+                    id="contact-email"
                     required
                     type="email"
+                    autoComplete="email"
                     value={formData.email}
                     onChange={(e) => handleFieldChange("email", e.target.value)}
                     placeholder="you@email.com"
@@ -142,9 +146,11 @@ const ContactPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground block mb-1.5">Phone (optional)</label>
+                  <label htmlFor="contact-phone" className="text-sm font-medium text-foreground block mb-1.5">Phone (optional)</label>
                   <input
+                    id="contact-phone"
                     type="tel"
+                    autoComplete="tel"
                     value={formData.phone}
                     onChange={(e) => handleFieldChange("phone", e.target.value)}
                     placeholder="(555) 000-0000"
@@ -152,8 +158,9 @@ const ContactPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground block mb-1.5">Message</label>
+                  <label htmlFor="contact-message" className="text-sm font-medium text-foreground block mb-1.5">Message</label>
                   <textarea
+                    id="contact-message"
                     required
                     rows={4}
                     value={formData.message}

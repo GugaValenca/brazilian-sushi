@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, BadgeCheck, MessageSquare, Percent, ShieldCheck, Ticket, Truck } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { BarChart3, BadgeCheck, MessageSquare, Percent, ShieldCheck, Ticket, TrendingUp, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 import SectionHeading from "@/components/SectionHeading";
@@ -60,6 +61,14 @@ const AdminDashboardPage = () => {
   });
 
   const { data: summary } = useQuery({ queryKey: ["staff-summary", token], queryFn: () => fetchStaffSummary(token!), enabled: Boolean(token && user?.is_staff) });
+  const revenueChartData = useMemo(
+    () =>
+      (summary?.daily_revenue ?? []).map((point) => ({
+        date: new Date(`${point.date}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        revenue: Number(point.revenue),
+      })),
+    [summary?.daily_revenue],
+  );
   const { data: staffQueue = [] } = useQuery({ queryKey: ["staff-queue", token], queryFn: () => fetchStaffQueue(token!), enabled: Boolean(token && user?.is_staff) });
   const { data: customers = [] } = useQuery({ queryKey: ["staff-customers", token], queryFn: () => fetchCustomers(token!), enabled: Boolean(token && user?.is_staff) });
   const { data: promotions = [] } = useQuery({ queryKey: ["staff-promotions", token], queryFn: () => fetchPromotionsAdmin(token!), enabled: Boolean(token && user?.is_staff) });
@@ -164,6 +173,55 @@ const AdminDashboardPage = () => {
           <div className="bg-card border border-border rounded-2xl p-5"><p className="text-sm text-muted-foreground">Ready / dispatch</p><p className="text-3xl font-display font-bold mt-2">{(summary?.ready ?? 0) + (summary?.out_for_delivery ?? 0)}</p></div>
           <div className="bg-card border border-border rounded-2xl p-5"><p className="text-sm text-muted-foreground">Delivered today snapshot</p><p className="text-3xl font-display font-bold mt-2">{summary?.delivered ?? 0}</p></div>
         </div>
+
+        <section className="bg-card border border-border rounded-2xl p-6 mb-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-4 mb-4">
+            <h3 className="text-2xl font-display font-bold inline-flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" aria-hidden="true" /> Revenue, last 7 days
+            </h3>
+            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+              <span>
+                Total: <strong className="text-foreground text-base">${Number(summary?.revenue_last_7_days ?? 0).toFixed(2)}</strong>
+              </span>
+              {summary?.average_delivery_minutes != null && (
+                <span>
+                  Avg. delivery time: <strong className="text-foreground text-base">{summary.average_delivery_minutes} min</strong>
+                </span>
+              )}
+            </div>
+          </div>
+          {revenueChartData.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No delivered orders in the last 7 days yet.</p>
+          ) : (
+            <div className="h-56" role="img" aria-label="Line chart of revenue from delivered orders over the last 7 days">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueChartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value: number) => `$${value}`}
+                    width={48}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, "Revenue"]}
+                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "0.75rem" }}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#revenueFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
 
         <div className="grid xl:grid-cols-[1.2fr_0.8fr] gap-8">
           <div className="space-y-8">

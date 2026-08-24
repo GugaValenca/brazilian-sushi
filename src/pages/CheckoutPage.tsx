@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock, MapPin, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ const CheckoutPage = () => {
   });
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const paymentWasCancelled = searchParams.get("payment") === "cancelled";
   const { items, subtotal, updateQuantity, removeItem, clearCart } = useCart();
   const { user, tokens, isAuthenticated } = useAuth();
   const [orderType, setOrderType] = useState<"delivery" | "pickup">("delivery");
@@ -47,6 +49,17 @@ const CheckoutPage = () => {
   const orderMutation = useMutation({
     mutationFn: (payload: Parameters<typeof createOrder>[0]) => createOrder(payload, tokens?.access),
     onSuccess: (order) => {
+      // When Stripe is configured on the backend, the order response
+      // includes a checkout_url priced entirely from what the server just
+      // computed — send the customer there to actually pay. The cart is
+      // kept until payment is confirmed: if they cancel on Stripe and land
+      // back on /checkout, their items are still here to try again.
+      // Without Stripe configured, checkout_url is simply absent and
+      // nothing here changes from before payments existed.
+      if (order.checkout_url) {
+        window.location.assign(order.checkout_url);
+        return;
+      }
       clearCart();
       toast.success("Order placed successfully");
       navigate(`/track-order?order=${order.id}&token=${order.tracking_token}`);
@@ -86,6 +99,15 @@ const CheckoutPage = () => {
           title="Complete Your Order"
           subtitle="Review your selections, choose delivery or pickup, and confirm the order notes our kitchen should see before service begins."
         />
+
+        {paymentWasCancelled && (
+          <div
+            role="status"
+            className="max-w-2xl mx-auto mb-8 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-center text-destructive"
+          >
+            Payment was cancelled. Your cart is unchanged — review your order and try again whenever you're ready.
+          </div>
+        )}
 
         {items.length === 0 ? (
           <div className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-10 text-center">
@@ -266,15 +288,36 @@ const CheckoutPage = () => {
                             <p className="font-semibold">{entry.item.name}</p>
                             <p className="text-sm text-muted-foreground">${entry.item.price.toFixed(2)} each</p>
                           </div>
-                          <button type="button" onClick={() => removeItem(entry.item.id)} className="text-muted-foreground hover:text-destructive">
-                            <Trash2 className="w-4 h-4" />
+                          <button
+                            type="button"
+                            onClick={() => removeItem(entry.item.id)}
+                            className="text-muted-foreground hover:text-destructive"
+                            aria-label={`Remove ${entry.item.name} from cart`}
+                          >
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>
                         </div>
                         <div className="flex items-center justify-between mt-3">
                           <div className="inline-flex items-center border border-border rounded-lg overflow-hidden">
-                            <button type="button" onClick={() => updateQuantity(entry.item.id, entry.quantity - 1)} className="px-3 py-2"><Minus className="w-4 h-4" /></button>
-                            <span className="px-3 text-sm font-medium">{entry.quantity}</span>
-                            <button type="button" onClick={() => updateQuantity(entry.item.id, entry.quantity + 1)} className="px-3 py-2"><Plus className="w-4 h-4" /></button>
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(entry.item.id, entry.quantity - 1)}
+                              className="px-3 py-2"
+                              aria-label={`Decrease quantity of ${entry.item.name}`}
+                            >
+                              <Minus className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                            <span className="px-3 text-sm font-medium" aria-live="polite">
+                              {entry.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(entry.item.id, entry.quantity + 1)}
+                              className="px-3 py-2"
+                              aria-label={`Increase quantity of ${entry.item.name}`}
+                            >
+                              <Plus className="w-4 h-4" aria-hidden="true" />
+                            </button>
                           </div>
                           <span className="font-semibold">${(entry.item.price * entry.quantity).toFixed(2)}</span>
                         </div>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
 
 import {
   fetchProfile,
@@ -10,6 +10,7 @@ import {
   type RegisterResponse,
   type UserProfile,
 } from "@/lib/account";
+import { getTokens, setTokens as persistTokens, subscribeToTokens } from "@/lib/tokenStore";
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -23,45 +24,47 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const STORAGE_KEY = "brazilian-sushi-auth";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [tokens, setTokens] = useState<AuthTokens | null>(null);
+  // tokens is sourced from tokenStore (shared with the silent-refresh
+  // interceptor in lib/api.ts) so a token renewed mid-request is reflected
+  // here immediately, without this component owning its own copy of it.
+  // This app is client-rendered only (no SSR/hydration), so no
+  // getServerSnapshot is needed.
+  const tokens = useSyncExternalStore(subscribeToTokens, getTokens);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
+    if (!tokens) {
+      setUser(null);
       setIsLoading(false);
       return;
     }
 
-    try {
-      const parsed = JSON.parse(stored) as AuthTokens;
-      setTokens(parsed);
-      fetchProfile(parsed.access)
-        .then(setUser)
-        .catch(() => {
-          window.localStorage.removeItem(STORAGE_KEY);
-          setTokens(null);
+    let cancelled = false;
+    setIsLoading(true);
+    fetchProfile(tokens.access)
+      .then((profile) => {
+        if (!cancelled) setUser(profile);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          persistTokens(null);
           setUser(null);
-        })
-        .finally(() => setIsLoading(false));
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
-      setIsLoading(false);
-    }
-  }, []);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
 
-  const persistTokens = (nextTokens: AuthTokens | null) => {
-    setTokens(nextTokens);
-    if (nextTokens) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextTokens));
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+    // Re-fetch whenever the access token changes (fresh login or a silent
+    // refresh), but not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens?.access]);
 
   const refreshProfile = async () => {
     if (!tokens) return;
