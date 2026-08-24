@@ -74,9 +74,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (payload: LoginPayload) => {
     const nextTokens = await loginRequest(payload);
+    // Persisting here is enough: it updates the shared tokenStore, which the
+    // effect above is already watching (tokens?.access) and will use to
+    // fetch the profile itself. Fetching it again here too would race that
+    // same effect over the exact same request — and if the caller navigates
+    // away before the second one lands, its abort can incorrectly wipe the
+    // session this call just established.
     persistTokens(nextTokens);
-    const profile = await fetchProfile(nextTokens.access);
-    setUser(profile);
   };
 
   const register = async (payload: RegisterPayload) => {

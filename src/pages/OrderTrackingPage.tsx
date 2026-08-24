@@ -144,7 +144,7 @@ const OrderTrackingPage = () => {
                   <div key={event.id} className="border-l-2 border-primary/30 pl-4">
                     <p className="font-medium">{statusLabels[event.status] ?? event.status}</p>
                     {event.note && <p className="text-sm text-muted-foreground mt-1">{event.note}</p>}
-                    <p className="text-xs text-muted-foreground mt-1">{new Date(event.created_at).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{new Date(event.created_at).toLocaleString("en-US")}</p>
                   </div>
                 ))}
               </div>

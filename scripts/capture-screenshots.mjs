@@ -76,13 +76,22 @@ async function main() {
   // throughout — keeps each capture's auth state fully isolated, the same
   // way a real visitor's guest session and a staff member's session would
   // never share one browser profile.
-  async function withPage(run) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const page = await context.newPage();
-    try {
-      await run(page);
-    } finally {
-      await context.close();
+  async function withPage(run, attempts = 2) {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      const page = await context.newPage();
+      try {
+        await run(page);
+        return;
+      } catch (error) {
+        // A cold dev server occasionally takes a while to transform a
+        // heavy lazy-loaded chunk (the staff dashboard pulls in recharts) —
+        // worth one retry with a fresh page before giving up.
+        if (attempt === attempts) throw error;
+        console.log(`  (retrying after: ${error.message.split("\n")[0]})`);
+      } finally {
+        await context.close();
+      }
     }
   }
 
@@ -114,16 +123,19 @@ async function main() {
     await page.screenshot({ path: path.join(outDir, "account-page.png") });
   });
 
-  console.log("Capturing staff dashboard...");
-  await withPage(async (page) => {
-    await loginAs(page, STAFF);
-    await page.goto(`${baseUrl}/staff-dashboard`);
-    await page.getByText("Live Order Queue").waitFor({ state: "visible", timeout: 15_000 });
-    await page.waitForTimeout(600); // let the revenue chart finish rendering
-    await page.screenshot({ path: path.join(outDir, "staff-dashboard.png") });
+  await browser.close();
+
+  // Captured as a fully separate process/browser instance rather than one
+  // more section here: this page is the heaviest one (React.lazy + recharts)
+  // and sequencing it after several other page loads in the same browser
+  // process made it noticeably less reliable to load in time — a fresh
+  // process sidesteps that instead of chasing longer and longer timeouts.
+  console.log("Capturing staff dashboard (separate process)...");
+  execFileSync(process.execPath, [path.join(__dirname, "capture-staff-screenshot.mjs")], {
+    cwd: repoRoot,
+    stdio: "inherit",
   });
 
-  await browser.close();
   console.log(`Done. Screenshots saved to ${outDir}`);
 }
 

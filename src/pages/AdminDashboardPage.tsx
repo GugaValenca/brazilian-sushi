@@ -36,7 +36,7 @@ const AdminDashboardPage = () => {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, tokens, isAuthenticated } = useAuth();
+  const { user, tokens, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const token = tokens?.access;
 
   const [promotionForm, setPromotionForm] = useState({
@@ -64,7 +64,7 @@ const AdminDashboardPage = () => {
   const revenueChartData = useMemo(
     () =>
       (summary?.daily_revenue ?? []).map((point) => ({
-        date: new Date(`${point.date}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        date: new Date(`${point.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         revenue: Number(point.revenue),
       })),
     [summary?.daily_revenue],
@@ -144,6 +144,19 @@ const AdminDashboardPage = () => {
     },
     onError: () => toast.error("Could not create coupon."),
   });
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen pt-24 md:pt-28 pb-16">
+        <div className="container max-w-3xl">
+          <SectionHeading label="Operations" title="Staff Dashboard" subtitle="This area is available only for administrative or staff accounts." />
+          <div className="bg-card border border-border rounded-2xl p-10 text-center text-muted-foreground" role="status">
+            Loading...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !user?.is_staff || !token) {
     return (

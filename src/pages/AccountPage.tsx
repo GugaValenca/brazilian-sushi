@@ -42,7 +42,7 @@ const AccountPage = () => {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, tokens, isAuthenticated, refreshProfile } = useAuth();
+  const { user, tokens, isAuthenticated, isLoading: isAuthLoading, refreshProfile } = useAuth();
   const { addItem } = useCart();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -189,6 +189,19 @@ const AccountPage = () => {
       ),
   });
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen pt-24 md:pt-28 pb-16">
+        <div className="container max-w-3xl">
+          <SectionHeading label="Customer Area" title="Your Account" subtitle="Sign in to manage orders, favorites, saved addresses, and verified customer perks." />
+          <div className="bg-card border border-border rounded-2xl p-10 text-center text-muted-foreground" role="status">
+            Loading your account...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated || !user || !token) {
     return (
       <div className="min-h-screen pt-24 md:pt-28 pb-16">
@@ -323,7 +336,7 @@ const AccountPage = () => {
                     <div key={favorite.id} className="flex items-center justify-between border border-border rounded-xl p-4 gap-4">
                       <div>
                         <p className="font-semibold inline-flex items-center gap-2"><Heart className="w-4 h-4 text-primary" /> {favorite.menu_item_name}</p>
-                        <p className="text-sm text-muted-foreground mt-1">Saved on {new Date(favorite.created_at).toLocaleDateString()}</p>
+                        <p className="text-sm text-muted-foreground mt-1">Saved on {new Date(favorite.created_at).toLocaleDateString("en-US")}</p>
                       </div>
                       <button type="button" onClick={() => removeFavoriteMutation.mutate(favorite.id)} className="text-sm font-semibold text-muted-foreground hover:text-foreground">Remove</button>
                     </div>
@@ -342,7 +355,7 @@ const AccountPage = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="font-semibold inline-flex items-center gap-2"><Truck className="w-4 h-4 text-primary" /> Order #{order.id}</p>
-                          <p className="text-sm text-muted-foreground mt-1">{new Date(order.created_at).toLocaleString()} - {order.status.replaceAll("_", " ")}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{new Date(order.created_at).toLocaleString("en-US")} - {order.status.replaceAll("_", " ")}</p>
                         </div>
                         <span className="font-semibold">${Number(order.total).toFixed(2)}</span>
                       </div>
@@ -367,7 +380,7 @@ const AccountPage = () => {
                       Items in this order: {eligibleReviewOrder?.product_names.join(", ")}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      This review stays available until {eligibleReviewOrder ? new Date(eligibleReviewOrder.available_until).toLocaleString() : ""}, or until you place a new order.
+                      This review stays available until {eligibleReviewOrder ? new Date(eligibleReviewOrder.available_until).toLocaleString("en-US") : ""}, or until you place a new order.
                     </p>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">

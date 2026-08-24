@@ -189,7 +189,11 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.ScopedRateThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "60/min",
+        # The storefront's own warmup/navigation flow (menu, categories,
+        # promotions, reviews, delivery zones) issues several anonymous GET
+        # requests per page — 60/min left too little headroom for someone
+        # genuinely browsing multiple pages back to back.
+        "anon": "180/min",
         "user": "300/min",
         "auth": "5/min",
     },
