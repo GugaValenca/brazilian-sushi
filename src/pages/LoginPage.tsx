@@ -33,6 +33,17 @@ const LoginPage = () => {
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "We could not sign you in. Check your credentials and try again.";
+
+      // Matches the "inactive_account" message from
+      // BrazilianSushiTokenObtainPairSerializer (accounts/serializers.py).
+      // Re-navigates to this same page with pendingConfirmationEmail set so
+      // the banner below actually renders — previously nothing in the app
+      // ever set that state, so it was unreachable dead code.
+      if (message.toLowerCase().includes("pending confirmation")) {
+        navigate(location.pathname, { state: { pendingConfirmationEmail: email }, replace: true });
+        return;
+      }
+
       toast.error(message);
     },
   });
