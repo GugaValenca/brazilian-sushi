@@ -1,11 +1,14 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Address
+from marketing.models import Coupon
 from menu.models import Category, MenuItem
 from orders.models import Order, OrderStatusEvent
 
@@ -355,3 +358,128 @@ class DeliveryAddressOwnershipTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("delivery_address", response.data)
+
+
+class CouponApplicationTests(APITestCase):
+    """A coupon attached to an order used to be accepted with no validation
+    at all and never actually applied — discount_amount stayed 0 regardless.
+    These cover the coupon actually being checked and its discount applied,
+    or the order being rejected outright when the coupon doesn't qualify."""
+
+    def setUp(self):
+        category = Category.objects.create(name="Combos", slug="coupon-combos")
+        self.menu_item = MenuItem.objects.create(
+            category=category,
+            name="Family Combo",
+            slug="family-combo-coupon-test",
+            short_description="Shareable combo",
+            price=Decimal("40.00"),
+        )
+        self.now = timezone.now()
+
+    def _order_payload(self, coupon_id):
+        return {
+            "order_type": Order.OrderType.PICKUP,
+            "coupon": coupon_id,
+            "guest_name": "Guest",
+            "guest_email": "guest-coupon-test@braziliansushi.com",
+            "guest_phone": "5551234567",
+            "notification_preference": "email",
+            "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+        }
+
+    def test_active_percentage_coupon_discounts_the_order(self):
+        coupon = Coupon.objects.create(
+            code="SAVE20",
+            description="20% off",
+            discount_type=Coupon.DiscountType.PERCENTAGE,
+            value=Decimal("20.00"),
+            starts_at=self.now - timedelta(days=1),
+            ends_at=self.now + timedelta(days=1),
+        )
+
+        response = self.client.post(reverse("order-list"), self._order_payload(coupon.id), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(pk=response.data["id"])
+        self.assertEqual(order.discount_amount, Decimal("8.00"))
+        self.assertEqual(order.total, Decimal("32.00"))
+
+    def test_expired_coupon_rejects_the_order(self):
+        coupon = Coupon.objects.create(
+            code="EXPIRED10",
+            description="Expired",
+            discount_type=Coupon.DiscountType.FIXED,
+            value=Decimal("10.00"),
+            starts_at=self.now - timedelta(days=30),
+            ends_at=self.now - timedelta(days=1),
+        )
+
+        response = self.client.post(reverse("order-list"), self._order_payload(coupon.id), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("coupon", response.data)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_coupon_below_minimum_order_rejects_the_order(self):
+        coupon = Coupon.objects.create(
+            code="BIGORDER",
+            description="Requires a bigger order",
+            discount_type=Coupon.DiscountType.FIXED,
+            value=Decimal("5.00"),
+            minimum_order=Decimal("100.00"),
+            starts_at=self.now - timedelta(days=1),
+            ends_at=self.now + timedelta(days=1),
+        )
+
+        response = self.client.post(reverse("order-list"), self._order_payload(coupon.id), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("coupon", response.data)
+
+    def test_verified_only_coupon_rejects_a_guest_order(self):
+        coupon = Coupon.objects.create(
+            code="VIPONLY",
+            description="Verified customers only",
+            discount_type=Coupon.DiscountType.FIXED,
+            value=Decimal("5.00"),
+            verified_only=True,
+            starts_at=self.now - timedelta(days=1),
+            ends_at=self.now + timedelta(days=1),
+        )
+
+        response = self.client.post(reverse("order-list"), self._order_payload(coupon.id), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("coupon", response.data)
+
+    def test_fixed_discount_never_exceeds_the_subtotal(self):
+        coupon = Coupon.objects.create(
+            code="HUGEFIXED",
+            description="Discount bigger than the order itself",
+            discount_type=Coupon.DiscountType.FIXED,
+            value=Decimal("1000.00"),
+            starts_at=self.now - timedelta(days=1),
+            ends_at=self.now + timedelta(days=1),
+        )
+
+        response = self.client.post(reverse("order-list"), self._order_payload(coupon.id), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(pk=response.data["id"])
+        self.assertEqual(order.discount_amount, Decimal("40.00"))
+        self.assertEqual(order.total, Decimal("0.00"))
+
+    def test_rejected_coupon_leaves_no_orphaned_order_or_items(self):
+        coupon = Coupon.objects.create(
+            code="EXPIRED-ORPHAN-CHECK",
+            description="Expired",
+            discount_type=Coupon.DiscountType.FIXED,
+            value=Decimal("10.00"),
+            starts_at=self.now - timedelta(days=30),
+            ends_at=self.now - timedelta(days=1),
+        )
+
+        self.client.post(reverse("order-list"), self._order_payload(coupon.id), format="json")
+
+        self.assertEqual(Order.objects.count(), 0)
