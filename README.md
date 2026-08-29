@@ -58,7 +58,7 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 - Every write to an order's price, status, or payment state goes through a permission-checked, audited action — the public order endpoint cannot be used to rewrite them directly
 - Rate limiting on authentication endpoints (login, register, resend confirmation) via DRF throttling
 - The app refuses to boot with `DEBUG=False` unless a real `SECRET_KEY` and `ALLOWED_HOSTS` are configured, instead of running exposed
-- Content-Security-Policy, Referrer-Policy, and Permissions-Policy headers on both the API (Django middleware) and the static frontend (`vercel.json`)
+- Content-Security-Policy, HSTS, X-Frame-Options, Referrer-Policy, and Permissions-Policy headers on both the API (Django middleware) and the static frontend (`vercel.json`)
 - Automatic, silent access-token refresh on the frontend so a session never dies mid-checkout
 - Optional Sentry error monitoring, off by default, on for both API and frontend when a DSN is configured
 
