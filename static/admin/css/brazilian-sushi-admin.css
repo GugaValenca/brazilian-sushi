@@ -20,7 +20,14 @@
   --bs-radius-sm: 10px;
 }
 
-html,
+/* :root, not html — Django's own base.css defines these same variables on
+   :root (specificity 0,1,0), which beats a plain `html` type selector
+   (0,0,1) regardless of stylesheet load order. That mismatch was silently
+   losing this entire variable block to Django's defaults on every page
+   except /admin/login/ (whose panels set their backgrounds directly on
+   classes, bypassing these variables entirely) — every other page rendered
+   with Django's stock white background instead of this theme. */
+:root,
 html[data-theme="light"],
 html[data-theme="dark"] {
   --body-bg: radial-gradient(circle at 0% -30%, rgba(200, 159, 73, 0.18), transparent 38%), linear-gradient(180deg, #151311, #100f0e);
@@ -255,6 +262,16 @@ a:hover {
 legend {
   margin: 0;
   padding: 0.95rem 1.15rem 0.7rem;
+  /* Explicitly transparent: Django's own base.css sets `background:
+     var(--header-bg)` (near-black) on this exact selector, and this rule
+     only ever overrode `color`, never `background` — so the dark ink text
+     color below rendered on Django's dark header bg on every page except
+     change forms, which happen to load forms.css after this stylesheet and
+     redeclare both properties together with a light color. Forcing
+     transparent here lets the card's own light background (set two rules
+     up) show through consistently everywhere, matching what the
+     .dashboard-scoped override further down already does. */
+  background: transparent;
   border-bottom: 1px solid rgba(32, 25, 21, 0.08);
   color: var(--bs-ink);
   font-family: "Playfair Display", serif;
@@ -272,6 +289,27 @@ legend {
 .dashboard .app-list table,
 #result_list {
   border-collapse: collapse;
+}
+
+/* Django's base.css zebra-stripes every changelist table via
+   `tr:nth-child(odd) { background: var(--body-bg) }` and
+   `tr:nth-child(even) { background: var(--darkened-bg) }`. --body-bg is
+   this theme's dark page background (correct for the page, wrong for a
+   table row sitting inside a light card) and --darkened-bg was never
+   themed at all, so it stayed Django's own light gray default. Combined
+   with the dark ink text color these tables use throughout, every odd row
+   rendered as dark text on a dark background — unreadable. These two
+   selectors (ID + tbody tr:nth-child, or two classes + the same) outrank
+   Django's plain `tr:nth-child` rule regardless of stylesheet order, so
+   they reliably win instead of depending on either CSS variable. */
+#result_list tbody tr:nth-child(odd),
+.dashboard .app-list tbody tr:nth-child(odd) {
+  background: rgba(248, 242, 232, 0.94);
+}
+
+#result_list tbody tr:nth-child(even),
+.dashboard .app-list tbody tr:nth-child(even) {
+  background: rgba(239, 228, 210, 0.8);
 }
 
 #result_list thead th {
@@ -514,7 +552,14 @@ input[type="submit"].default:hover {
   padding: 0.9rem 1rem;
   border-radius: var(--bs-radius-md);
   border: 1px solid rgba(32, 25, 21, 0.12);
-  background: rgba(255, 255, 255, 0.72);
+  /* Was rgba(255, 255, 255, 0.72) — noticeably grayer/muddier than every
+     sibling "light card" in this theme (.bs-admin-hero, .bs-admin-module-card,
+     etc.), which all use this same near-opaque cream. That lower opacity was
+     also most of why the kicker-label fix below was needed at all: on the
+     grayer background, the .bs-admin-kicker text on top of it measured a
+     ~1.9:1 contrast ratio against real rendered pixels (WCAG AA needs
+     4.5:1) — on this cream it's no longer even close to a problem. */
+  background: linear-gradient(180deg, rgba(248, 242, 232, 0.98), rgba(239, 228, 210, 0.95));
 }
 
 .bs-admin-panel-card strong,
@@ -528,7 +573,24 @@ input[type="submit"].default:hover {
   font-size: 1.38rem;
 }
 
-.bs-admin-panel-card span {
+.bs-admin-panel-card span,
+.bs-admin-login-highlight span {
+  color: #5d4d41;
+}
+
+/* .bs-admin-kicker defaults to a light gold (#d7b977) meant for the dark
+   page background it sits on in the header and login card. Reused as-is
+   inside any of these light cream cards, it measured a ~1.9:1 contrast
+   ratio against real rendered pixels — nowhere near WCAG AA's 4.5:1 for
+   small bold text. Darkened specifically in this context, reusing the same
+   muted-ink tone already proven readable for the body copy right next to it. */
+.bs-admin-hero .bs-admin-kicker,
+.bs-admin-section-head .bs-admin-kicker,
+.bs-admin-login-showcase .bs-admin-kicker,
+.bs-admin-panel-card .bs-admin-kicker,
+.bs-admin-dashboard-card .bs-admin-kicker,
+.bs-admin-workflow-card .bs-admin-kicker,
+.bs-admin-login-highlight .bs-admin-kicker {
   color: #5d4d41;
 }
 
@@ -537,6 +599,37 @@ input[type="submit"].default:hover {
   display: grid;
   gap: 0.85rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Referenced in templates/admin/orders/order/change_list.html to call out
+   the "Attention needed" card (allergy/kitchen alerts), but had no rule of
+   its own — it rendered identically to the five purely-informational status
+   cards next to it, with no visual cue that it's the one operationally
+   different card in the row. */
+.bs-admin-workflow-card--alert {
+  border-color: rgba(203, 75, 63, 0.35);
+  background: linear-gradient(180deg, rgba(203, 75, 63, 0.12), rgba(203, 75, 63, 0.05));
+}
+
+.bs-admin-workflow-card--alert strong {
+  color: #a1382d;
+}
+
+/* Django's .object-tools ("Add order") is pulled up by a hardcoded -48px
+   margin-top, sized for sitting next to a single-line <h1> title. This page
+   is the only changelist whose content_title override
+   (custom_change_list_title.html + this workflow grid) is tall enough for
+   that pull-up to land it on top of the workflow cards instead of beside a
+   title — confirmed by comparing against every other model's changelist,
+   none of which override content_title and so keep Django's default
+   spacing, which is correctly calibrated there. Scoped to this one page
+   rather than changing .object-tools globally. */
+.model-order.change-list #content-main {
+  padding-top: 3rem;
+}
+
+.model-order.change-list .object-tools {
+  margin-top: 0;
 }
 
 .bs-admin-split-grid {
