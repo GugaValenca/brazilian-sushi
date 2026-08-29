@@ -110,3 +110,42 @@ class LoginThrottleTests(APITestCase):
             url, {"email": self.user.email, "password": "StrongPass123!"}, format="json"
         )
         self.assertEqual(valid_login_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+class LoginEnumerationTests(APITestCase):
+    """Regression tests for a fixed user-enumeration leak: the login
+    endpoint used to reveal that an email belonged to a registered-but-
+    unconfirmed account whenever *any* password was submitted for it,
+    without the password actually needing to be correct."""
+
+    def setUp(self):
+        cache.clear()
+        self.pending_user = User.objects.create_user(
+            email="pending-confirmation@braziliansushi.com",
+            username="pendingconfirmation",
+            password="StrongPass123!",
+            is_active=False,
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_wrong_password_for_unconfirmed_account_gives_generic_error(self):
+        response = self.client.post(
+            reverse("token_obtain_pair"),
+            {"email": self.pending_user.email, "password": "totally-wrong-password"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn("pending confirmation", str(response.data).lower())
+
+    def test_correct_password_for_unconfirmed_account_still_explains_why(self):
+        response = self.client.post(
+            reverse("token_obtain_pair"),
+            {"email": self.pending_user.email, "password": "StrongPass123!"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("pending confirmation", str(response.data).lower())

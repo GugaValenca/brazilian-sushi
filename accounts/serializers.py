@@ -139,8 +139,19 @@ class BrazilianSushiTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         email = attrs.get("email")
+        password = attrs.get("password", "")
         user = User.objects.filter(email=email).first()
-        if user and not user.is_active and not user.account_confirmed_at:
+        # check_password gates this on a *correct* password so the friendlier
+        # "please confirm your account" message can't be used to enumerate
+        # which emails are registered (or which are still unconfirmed) by
+        # submitting a login with an arbitrary password — the same class of
+        # leak ResendConfirmationView.post already avoids for its endpoint.
+        if (
+            user
+            and not user.is_active
+            and not user.account_confirmed_at
+            and user.check_password(password)
+        ):
             raise AuthenticationFailed(self.error_messages["inactive_account"], code="inactive_account")
 
         data = super().validate(attrs)
