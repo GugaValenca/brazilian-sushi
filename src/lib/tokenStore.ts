@@ -7,6 +7,17 @@ import type { AuthTokens } from "@/lib/account";
 // localStorage key and JSON parsing in both places — is what lets a 401
 // response transparently refresh the session and have every subscribed
 // component immediately see the new token.
+//
+// Tokens live in localStorage rather than an httpOnly cookie, which is the
+// stronger option against XSS token theft. That tradeoff is deliberate here:
+// moving to cookies means the API would need to issue and read them
+// (SimpleJWT cookie support), CORS would need credentialed requests, and CSRF
+// protection would need to cover every authenticated endpoint instead of
+// just the session-based Django admin. The CSP already in place
+// (script-src 'self', no inline/eval, no third-party scripts — see
+// backend/middleware.py) closes off the injection vectors that would
+// normally be used to read localStorage, which meaningfully narrows this
+// gap without that broader rework.
 const STORAGE_KEY = "brazilian-sushi-auth";
 
 function readFromStorage(): AuthTokens | null {
