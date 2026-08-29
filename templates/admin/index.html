@@ -7,6 +7,12 @@
 
 {% block nav-breadcrumbs %}{% endblock %}
 
+{# The .bs-admin-hero section below already shows this page's title — this
+   suppresses Django's default plain <h1> so "Operations Dashboard" doesn't
+   render twice. Same reason login.html and the orders app's custom
+   change_list/change_form titles empty this block. #}
+{% block content_title %}{% endblock %}
+
 {% block content %}
 <div id="content-main">
   <div class="bs-admin-dashboard-layout">
