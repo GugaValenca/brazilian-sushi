@@ -249,3 +249,24 @@ class ContactMessageResolvedFieldTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         message = ContactMessage.objects.get(pk=response.data["id"])
         self.assertFalse(message.resolved)
+
+    def test_staff_can_still_mark_a_message_resolved(self):
+        # Regression test for a bug introduced by the fix above: using one
+        # serializer with `resolved` merely marked read-only would silently
+        # block staff from ever setting it too, since read_only_fields
+        # applies to every action sharing that serializer, not just create.
+        staff = User.objects.create_superuser(
+            email="contact-staff@braziliansushi.com", username="contactstaff", password="StrongPass123!"
+        )
+        message = ContactMessage.objects.create(
+            name="Visitor", email="visitor2@example.com", phone="5551234567", message="Any gluten-free rolls?"
+        )
+        self.client.force_authenticate(staff)
+
+        response = self.client.patch(
+            reverse("contact-message-detail", args=[message.id]), {"resolved": True}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        message.refresh_from_db()
+        self.assertTrue(message.resolved)

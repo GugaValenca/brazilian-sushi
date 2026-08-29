@@ -68,11 +68,22 @@ class ReviewEligibilitySerializer(serializers.Serializer):
 
 
 class ContactMessageSerializer(serializers.ModelSerializer):
+    """Used for staff-only actions (list/retrieve/update/destroy — see
+    ContactMessageViewSet.get_permissions), where `resolved` is meant to be
+    writable. The public create action uses ContactMessageCreateSerializer
+    instead, which doesn't expose the field at all — a single serializer
+    with `resolved` merely read-only would block *both* the public write
+    (correct) and the staff one (not correct), since read_only_fields
+    applies to every action that uses the serializer, not just create."""
+
     class Meta:
         model = ContactMessage
         fields = "__all__"
-        # `resolved` is staff-only in intent (see ContactMessageViewSet,
-        # which only opens create to the public) — without this, anyone
-        # submitting the public contact form could mark their own message
-        # already resolved, hiding it from the staff queue.
-        read_only_fields = ("created_at", "resolved")
+        read_only_fields = ("created_at",)
+
+
+class ContactMessageCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactMessage
+        fields = ("id", "name", "email", "phone", "message", "created_at")
+        read_only_fields = ("created_at",)

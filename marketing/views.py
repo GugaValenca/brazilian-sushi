@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from .models import ContactMessage, Coupon, Promotion, Review
 from .serializers import (
+    ContactMessageCreateSerializer,
     ContactMessageSerializer,
     CouponSerializer,
     PromotionSerializer,
@@ -86,9 +87,13 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
 class ContactMessageViewSet(viewsets.ModelViewSet):
     queryset = ContactMessage.objects.all()
-    serializer_class = ContactMessageSerializer
 
     def get_permissions(self):
         if self.action in {"list", "retrieve", "update", "partial_update", "destroy"}:
             return [permissions.IsAdminUser()]
         return [permissions.AllowAny()]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return ContactMessageCreateSerializer
+        return ContactMessageSerializer
