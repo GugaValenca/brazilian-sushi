@@ -5,6 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.models import Address
 from menu.models import Category, MenuItem
 from orders.models import Order, OrderStatusEvent
 
@@ -273,3 +274,84 @@ class CheckoutValidationTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class DeliveryAddressOwnershipTests(APITestCase):
+    """Regression tests for a fixed IDOR: an order's delivery_address field
+    used to accept any Address primary key in the database, letting one
+    customer attach another customer's saved home address to their own
+    order."""
+
+    def setUp(self):
+        category = Category.objects.create(name="Rolls", slug="address-ownership-rolls")
+        self.menu_item = MenuItem.objects.create(
+            category=category,
+            name="California Roll",
+            slug="california-roll-address-test",
+            short_description="Classic roll",
+            price=Decimal("14.00"),
+        )
+        self.owner = User.objects.create_user(
+            email="address-owner@braziliansushi.com",
+            username="addressowner",
+            password="StrongPass123!",
+        )
+        self.attacker = User.objects.create_user(
+            email="address-attacker@braziliansushi.com",
+            username="addressattacker",
+            password="StrongPass123!",
+        )
+        self.owners_address = Address.objects.create(
+            user=self.owner,
+            label="Home",
+            recipient_name="Address Owner",
+            phone_number="8135550001",
+            line_1="123 Private Ave",
+            city="Tampa",
+            state="FL",
+            postal_code="33602",
+        )
+
+    def _order_payload(self, delivery_address_id):
+        return {
+            "order_type": Order.OrderType.DELIVERY,
+            "delivery_address": delivery_address_id,
+            "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+        }
+
+    def test_authenticated_customer_cannot_attach_another_customers_address(self):
+        self.client.force_authenticate(self.attacker)
+
+        response = self.client.post(
+            reverse("order-list"), self._order_payload(self.owners_address.id), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("delivery_address", response.data)
+
+    def test_authenticated_customer_can_attach_their_own_address(self):
+        self.client.force_authenticate(self.owner)
+
+        response = self.client.post(
+            reverse("order-list"), self._order_payload(self.owners_address.id), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(pk=response.data["id"])
+        self.assertEqual(order.delivery_address, self.owners_address)
+
+    def test_guest_cannot_attach_any_saved_address(self):
+        response = self.client.post(
+            reverse("order-list"),
+            {
+                **self._order_payload(self.owners_address.id),
+                "guest_name": "Guest",
+                "guest_email": "guest-address-test@braziliansushi.com",
+                "guest_phone": "5551234567",
+                "notification_preference": "email",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("delivery_address", response.data)

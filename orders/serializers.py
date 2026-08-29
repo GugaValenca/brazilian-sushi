@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from accounts.models import Address
+
 from .models import DeliveryZone, Order, OrderItem, OrderItemSelection, OrderStatusEvent
 from .services import create_order
 
@@ -19,6 +21,15 @@ class OrderItemWriteSerializer(serializers.Serializer):
 
 class CreateOrderSerializer(serializers.ModelSerializer):
     items = OrderItemWriteSerializer(many=True, write_only=True)
+    # Overrides the ModelSerializer's default auto-generated field, which
+    # would otherwise validate against Address.objects.all() — i.e. accept
+    # ANY address primary key in the database, letting one customer attach
+    # (and thereby route a delivery to) another customer's saved home
+    # address. Scoped to the requesting user's own addresses in __init__;
+    # a guest checkout has no addresses to choose from at all.
+    delivery_address = serializers.PrimaryKeyRelatedField(
+        queryset=Address.objects.none(), required=False, allow_null=True
+    )
 
     class Meta:
         model = Order
@@ -39,6 +50,13 @@ class CreateOrderSerializer(serializers.ModelSerializer):
             "items",
         )
         read_only_fields = ("customer",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            self.fields["delivery_address"].queryset = user.addresses.all()
 
     def validate(self, attrs):
         request = self.context["request"]
