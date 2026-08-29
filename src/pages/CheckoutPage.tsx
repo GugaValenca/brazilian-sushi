@@ -5,8 +5,8 @@ import { ArrowRight, Clock, MapPin, Minus, Plus, ShoppingBag, Trash2 } from "luc
 import { toast } from "sonner";
 
 import SectionHeading from "@/components/SectionHeading";
-import { useAuth } from "@/contexts/AuthContext";
-import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { createOrder, fetchDeliveryZones } from "@/lib/catalog";
 

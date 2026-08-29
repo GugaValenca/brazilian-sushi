@@ -1,23 +1,9 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { NormalizedMenuItem } from "@/lib/catalog";
 
-interface CartItem {
-  item: NormalizedMenuItem;
-  quantity: number;
-}
+import { CartContext, type CartItem } from "./cart-context";
 
-interface CartContextValue {
-  items: CartItem[];
-  totalItems: number;
-  subtotal: number;
-  addItem: (item: NormalizedMenuItem) => void;
-  removeItem: (itemId: string) => void;
-  updateQuantity: (itemId: string, quantity: number) => void;
-  clearCart: () => void;
-}
-
-const CartContext = createContext<CartContextValue | undefined>(undefined);
 const STORAGE_KEY = "brazilian-sushi-cart";
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
@@ -71,12 +57,4 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       {children}
     </CartContext.Provider>
   );
-};
-
-export const useCart = () => {
-  const context = useContext(CartContext);
-  if (!context) {
-    throw new Error("useCart must be used within a CartProvider");
-  }
-  return context;
 };

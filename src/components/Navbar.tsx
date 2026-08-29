@@ -3,8 +3,8 @@ import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, Menu, Phone, ShoppingBag, User, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { useAuth } from "@/contexts/AuthContext";
-import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { businessInfo } from "@/lib/site";
 
 const links = [

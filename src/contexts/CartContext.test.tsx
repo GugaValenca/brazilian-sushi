@@ -1,7 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { CartProvider, useCart } from "./CartContext";
+import { useCart } from "@/hooks/useCart";
+
+import { CartProvider } from "./CartContext";
 import type { NormalizedMenuItem } from "@/lib/catalog";
 
 const roll: NormalizedMenuItem = {

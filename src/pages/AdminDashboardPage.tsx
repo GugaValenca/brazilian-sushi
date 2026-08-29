@@ -2,11 +2,11 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { BarChart3, BadgeCheck, MessageSquare, Percent, ShieldCheck, Ticket, TrendingUp, Truck } from "lucide-react";
+import { BarChart3, BadgeCheck, MessageSquare, Percent, Ticket, TrendingUp, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 import SectionHeading from "@/components/SectionHeading";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   createCoupon,

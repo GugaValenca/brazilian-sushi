@@ -5,8 +5,8 @@ import { Heart, MapPin, ShieldCheck, Star, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 import SectionHeading from "@/components/SectionHeading";
-import { useAuth } from "@/contexts/AuthContext";
-import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   createAddress,

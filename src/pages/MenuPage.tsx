@@ -6,8 +6,8 @@ import { toast } from "sonner";
 
 import SectionHeading from "@/components/SectionHeading";
 import MenuCard from "@/components/MenuCard";
-import { useAuth } from "@/contexts/AuthContext";
-import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { categories as fallbackCategories, menuItems as fallbackItems } from "@/data/menuData";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { addFavorite, fetchFavorites, removeFavorite, type FavoriteItem } from "@/lib/account";

@@ -5,7 +5,7 @@ import { LogIn, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import SectionHeading from "@/components/SectionHeading";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
 
 const LoginPage = () => {

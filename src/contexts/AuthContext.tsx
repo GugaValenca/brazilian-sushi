@@ -1,29 +1,16 @@
-import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import {
   fetchProfile,
   login as loginRequest,
   register as registerRequest,
-  type AuthTokens,
   type LoginPayload,
   type RegisterPayload,
-  type RegisterResponse,
   type UserProfile,
 } from "@/lib/account";
 import { getTokens, setTokens as persistTokens, subscribeToTokens } from "@/lib/tokenStore";
 
-interface AuthContextValue {
-  user: UserProfile | null;
-  tokens: AuthTokens | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (payload: LoginPayload) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<RegisterResponse>;
-  logout: () => void;
-  refreshProfile: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { AuthContext } from "./auth-context";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // tokens is sourced from tokenStore (shared with the silent-refresh
@@ -108,12 +95,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 };

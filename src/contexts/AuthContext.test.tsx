@@ -1,8 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AuthProvider, useAuth } from "./AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { getTokens, setTokens } from "@/lib/tokenStore";
+
+import { AuthProvider } from "./AuthContext";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
