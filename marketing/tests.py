@@ -5,7 +5,7 @@ from datetime import timedelta
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Review
+from .models import ContactMessage, Review
 from orders.models import Order
 from menu.models import Category, MenuItem
 
@@ -226,3 +226,26 @@ class ReviewSubmissionTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(Review.objects.count(), 0)
+
+
+class ContactMessageResolvedFieldTests(APITestCase):
+    """Regression test: `resolved` used to be writable on the public contact
+    form, letting anyone mark their own inquiry pre-resolved and hide it from
+    the staff queue."""
+
+    def test_public_submission_ignores_a_client_supplied_resolved_flag(self):
+        response = self.client.post(
+            reverse("contact-message-list"),
+            {
+                "name": "Visitor",
+                "email": "visitor@example.com",
+                "phone": "5551234567",
+                "message": "Do you deliver to zip 33602?",
+                "resolved": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        message = ContactMessage.objects.get(pk=response.data["id"])
+        self.assertFalse(message.resolved)

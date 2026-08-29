@@ -71,4 +71,8 @@ class ContactMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactMessage
         fields = "__all__"
-        read_only_fields = ("created_at",)
+        # `resolved` is staff-only in intent (see ContactMessageViewSet,
+        # which only opens create to the public) — without this, anyone
+        # submitting the public contact form could mark their own message
+        # already resolved, hiding it from the staff queue.
+        read_only_fields = ("created_at", "resolved")
