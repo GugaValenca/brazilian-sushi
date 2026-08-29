@@ -14,13 +14,21 @@ class DeliveryZoneSerializer(serializers.ModelSerializer):
 
 class OrderItemWriteSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
-    quantity = serializers.IntegerField(min_value=1)
+    # Capped well above anything a real order would need. Without a ceiling,
+    # a huge quantity here (unit_price * quantity) can produce a line_total
+    # past the model field's max_digits, which Postgres rejects at INSERT
+    # time as an unhandled 500 rather than the clean 400 this should be —
+    # SQLite (used by the test DB) doesn't enforce that precision at all, so
+    # this class of bug wouldn't otherwise show up in tests.
+    quantity = serializers.IntegerField(min_value=1, max_value=50)
     option_ids = serializers.ListField(child=serializers.IntegerField(), required=False)
     special_request = serializers.CharField(required=False, allow_blank=True)
 
 
 class CreateOrderSerializer(serializers.ModelSerializer):
-    items = OrderItemWriteSerializer(many=True, write_only=True)
+    # max_length keeps a single request from creating an unbounded number of
+    # OrderItem rows in one call — no real cart needs more than this.
+    items = OrderItemWriteSerializer(many=True, write_only=True, min_length=1, max_length=50)
     # Overrides the ModelSerializer's default auto-generated field, which
     # would otherwise validate against Address.objects.all() — i.e. accept
     # ANY address primary key in the database, letting one customer attach

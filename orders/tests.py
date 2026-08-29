@@ -9,8 +9,9 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Address
 from marketing.models import Coupon
-from menu.models import Category, MenuItem
+from menu.models import Category, MenuItem, MenuOption, MenuOptionGroup
 from orders.models import Order, OrderStatusEvent
+from orders.services import clone_order_for_reorder
 
 User = get_user_model()
 
@@ -483,3 +484,168 @@ class CouponApplicationTests(APITestCase):
         self.client.post(reverse("order-list"), self._order_payload(coupon.id), format="json")
 
         self.assertEqual(Order.objects.count(), 0)
+
+
+class OrderItemLimitTests(APITestCase):
+    """Regression tests: an absurd quantity used to reach the database as an
+    unhandled error instead of a clean validation response, and the number
+    of line items per order was unbounded."""
+
+    def setUp(self):
+        category = Category.objects.create(name="Rolls", slug="limit-test-rolls")
+        self.menu_item = MenuItem.objects.create(
+            category=category,
+            name="Spicy Tuna Roll",
+            slug="spicy-tuna-roll-limit-test",
+            short_description="Classic roll",
+            price=Decimal("13.00"),
+        )
+
+    def _payload(self, items):
+        return {
+            "order_type": Order.OrderType.PICKUP,
+            "guest_name": "Guest",
+            "guest_email": "guest-limits@braziliansushi.com",
+            "guest_phone": "5551234567",
+            "notification_preference": "email",
+            "items": items,
+        }
+
+    def test_absurd_quantity_is_rejected_cleanly(self):
+        response = self.client.post(
+            reverse("order-list"),
+            self._payload([{"menu_item_id": self.menu_item.id, "quantity": 999999999}]),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_too_many_line_items_is_rejected_cleanly(self):
+        items = [{"menu_item_id": self.menu_item.id, "quantity": 1} for _ in range(51)]
+
+        response = self.client.post(reverse("order-list"), self._payload(items), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_reasonable_quantity_still_works(self):
+        response = self.client.post(
+            reverse("order-list"),
+            self._payload([{"menu_item_id": self.menu_item.id, "quantity": 12}]),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class OptionGroupSelectionTests(APITestCase):
+    """A required (or min/max-bounded) option group used to be entirely
+    unenforced when placing an order — the client could omit a required
+    choice, or select more options than a group's max_select allowed."""
+
+    def setUp(self):
+        category = Category.objects.create(name="Combos", slug="option-group-combos")
+        self.menu_item = MenuItem.objects.create(
+            category=category,
+            name="Build Your Own Bowl",
+            slug="build-your-own-bowl",
+            short_description="Choose your protein",
+            price=Decimal("15.00"),
+        )
+        self.protein_group = MenuOptionGroup.objects.create(
+            menu_item=self.menu_item,
+            name="Protein",
+            required=True,
+            min_select=1,
+            max_select=1,
+        )
+        self.salmon = MenuOption.objects.create(group=self.protein_group, name="Salmon", price_delta=Decimal("0.00"))
+        self.tuna = MenuOption.objects.create(group=self.protein_group, name="Tuna", price_delta=Decimal("1.50"))
+
+    def _payload(self, option_ids):
+        item = {"menu_item_id": self.menu_item.id, "quantity": 1}
+        if option_ids is not None:
+            item["option_ids"] = option_ids
+        return {
+            "order_type": Order.OrderType.PICKUP,
+            "guest_name": "Guest",
+            "guest_email": "guest-options@braziliansushi.com",
+            "guest_phone": "5551234567",
+            "notification_preference": "email",
+            "items": [item],
+        }
+
+    def test_omitting_a_required_group_rejects_the_order(self):
+        response = self.client.post(reverse("order-list"), self._payload(None), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_exceeding_max_select_rejects_the_order(self):
+        response = self.client.post(
+            reverse("order-list"), self._payload([self.salmon.id, self.tuna.id]), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_a_valid_single_selection_is_accepted_and_priced(self):
+        response = self.client.post(reverse("order-list"), self._payload([self.tuna.id]), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(pk=response.data["id"])
+        self.assertEqual(order.subtotal, Decimal("16.50"))
+
+
+class ReorderRepricingTests(APITestCase):
+    """Reordering used to copy the original order's frozen unit_price/line_total
+    directly, and never re-checked whether the item was still available —
+    unlike every other order-creation path, which always prices from the
+    current MenuItem record."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="Combos", slug="reorder-combos")
+        self.menu_item = MenuItem.objects.create(
+            category=self.category,
+            name="Weekend Combo",
+            slug="weekend-combo-reorder-test",
+            short_description="Shareable combo",
+            price=Decimal("20.00"),
+        )
+        self.customer = User.objects.create_user(
+            email="reorder-customer@braziliansushi.com",
+            username="reordercustomer",
+            password="StrongPass123!",
+        )
+        self.original_order = Order.objects.create(
+            customer=self.customer,
+            order_type=Order.OrderType.PICKUP,
+            subtotal=Decimal("20.00"),
+            total=Decimal("20.00"),
+        )
+        self.original_order.items.create(
+            menu_item=self.menu_item,
+            quantity=1,
+            unit_price=Decimal("20.00"),
+            line_total=Decimal("20.00"),
+        )
+
+    def test_reorder_uses_todays_price_not_the_original_price(self):
+        self.menu_item.price = Decimal("25.00")
+        self.menu_item.save(update_fields=["price"])
+
+        new_order = clone_order_for_reorder(self.original_order, self.customer)
+
+        self.assertEqual(new_order.items.get().unit_price, Decimal("25.00"))
+        self.assertEqual(new_order.total, Decimal("25.00"))
+
+    def test_reorder_rejects_an_item_that_is_now_sold_out(self):
+        self.menu_item.availability = MenuItem.Availability.SOLD_OUT
+        self.menu_item.save(update_fields=["availability"])
+
+        with self.assertRaises(Exception):
+            clone_order_for_reorder(self.original_order, self.customer)
+
+        # Nothing left behind despite the failed reorder.
+        self.assertEqual(Order.objects.exclude(pk=self.original_order.pk).count(), 0)

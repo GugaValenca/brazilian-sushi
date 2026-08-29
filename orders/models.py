@@ -1,5 +1,4 @@
 import uuid
-from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
@@ -80,11 +79,6 @@ class Order(models.Model):
         if len(valid) < 2:
             return None
         return int((valid[-1] - valid[0]).total_seconds() // 60)
-
-    def recalculate_totals(self):
-        subtotal = sum((item.line_total for item in self.items.all()), Decimal("0.00"))
-        self.subtotal = subtotal
-        self.total = max(subtotal + self.delivery_fee - self.discount_amount, Decimal("0.00"))
 
 
 class OrderItem(models.Model):

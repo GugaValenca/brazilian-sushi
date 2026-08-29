@@ -59,6 +59,37 @@ def _resolve_menu_item(menu_item_id):
     return menu_item
 
 
+def _resolve_options(menu_item, option_ids):
+    """Validates the selected options against each of the item's option
+    groups (required / min_select / max_select) and returns the selected
+    MenuOption rows. An option belonging to another item is silently
+    excluded by the group__menu_item filter, same as before this check
+    existed — this only adds the group cardinality rules on top."""
+    selected_options = list(
+        MenuOption.objects.select_related("group").filter(id__in=option_ids, group__menu_item=menu_item)
+    )
+    selected_by_group = {}
+    for option in selected_options:
+        selected_by_group.setdefault(option.group_id, []).append(option)
+
+    for group in menu_item.option_groups.all():
+        count = len(selected_by_group.get(group.id, []))
+        if group.required and count == 0:
+            raise UnavailableMenuItem(
+                {"items": f'"{group.name}" is required for "{menu_item.name}".'}
+            )
+        if count < group.min_select:
+            raise UnavailableMenuItem(
+                {"items": f'Select at least {group.min_select} option(s) for "{group.name}" on "{menu_item.name}".'}
+            )
+        if count > group.max_select:
+            raise UnavailableMenuItem(
+                {"items": f'Select at most {group.max_select} option(s) for "{group.name}" on "{menu_item.name}".'}
+            )
+
+    return selected_options
+
+
 def build_order_items(order, items_data):
     """Create OrderItem/OrderItemSelection rows for ``order`` from validated
     cart payload. Prices are always computed from the current MenuItem/MenuOption
@@ -67,7 +98,7 @@ def build_order_items(order, items_data):
     for item_data in items_data:
         menu_item = _resolve_menu_item(item_data["menu_item_id"])
         option_ids = item_data.get("option_ids", [])
-        selected_options = list(MenuOption.objects.filter(id__in=option_ids, group__menu_item=menu_item))
+        selected_options = _resolve_options(menu_item, option_ids)
         extra_cost = sum((option.price_delta for option in selected_options), Decimal("0.00"))
         unit_price = menu_item.price + extra_cost
         line_total = unit_price * item_data["quantity"]
@@ -115,30 +146,51 @@ def create_order(validated_data, items_data, user):
 
 
 def clone_order_for_reorder(original_order, customer):
+    """Places a new order for the same items as ``original_order``. Deliberately
+    does not copy the old unit_price/line_total across: menu prices and item
+    availability can both have changed since then, and every other order-creation
+    path in this file prices strictly from current MenuItem/MenuOption records —
+    reorder re-runs the same build_order_items used for a fresh checkout instead
+    of trusting frozen numbers from a potentially stale historical order."""
+    items_data = [
+        {
+            "menu_item_id": item.menu_item_id,
+            "quantity": item.quantity,
+            "option_ids": list(item.selections.values_list("option_id", flat=True)),
+            "special_request": item.special_request,
+        }
+        for item in original_order.items.all()
+    ]
+
     with transaction.atomic():
         new_order = Order.objects.create(
             customer=customer,
             delivery_address=original_order.delivery_address,
-            coupon=original_order.coupon,
             delivery_zone=original_order.delivery_zone,
             order_type=original_order.order_type,
             notes=original_order.notes,
             allergy_notes=original_order.allergy_notes,
             notification_preference=original_order.notification_preference,
-            delivery_fee=original_order.delivery_fee,
-            estimated_minutes=original_order.estimated_minutes,
         )
-        for item in original_order.items.all():
-            cloned_item = new_order.items.create(
-                menu_item=item.menu_item,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                line_total=item.line_total,
-                special_request=item.special_request,
-            )
-            for selection in item.selections.all():
-                cloned_item.selections.create(option=selection.option, price_delta=selection.price_delta)
-        new_order.recalculate_totals()
+        subtotal = build_order_items(new_order, items_data)
+
+        if new_order.delivery_zone and new_order.order_type == Order.OrderType.DELIVERY:
+            new_order.delivery_fee = new_order.delivery_zone.fee
+            new_order.estimated_minutes = new_order.delivery_zone.average_minutes
+
+        # Carry the original coupon forward only if it's still valid today —
+        # reorder never asks the customer to re-enter one, so an expired or
+        # now-inapplicable coupon is just dropped instead of blocking the
+        # whole reorder over a promo they weren't actively trying to use.
+        if original_order.coupon:
+            try:
+                new_order.discount_amount = _compute_coupon_discount(original_order.coupon, subtotal, customer)
+                new_order.coupon = original_order.coupon
+            except InvalidCoupon:
+                pass
+
+        new_order.subtotal = subtotal
+        new_order.total = max(subtotal + new_order.delivery_fee - new_order.discount_amount, Decimal("0.00"))
         new_order.save()
         OrderStatusEvent.objects.create(order=new_order, status=new_order.status, note="Reordered from previous order")
     return new_order
