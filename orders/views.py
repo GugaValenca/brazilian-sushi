@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from payments.services import create_checkout_session
 
@@ -40,6 +41,17 @@ class OrderViewSet(viewsets.ModelViewSet):
         if self.action == "create":
             return CreateOrderSerializer
         return OrderSerializer
+
+    def get_throttles(self):
+        # Order creation is open to anyone, including guests, so it only
+        # inherits the generic anon rate (180/min) by default — plenty of
+        # headroom to flood the kitchen queue with junk orders. Give it its
+        # own tighter scope instead, the same pattern already used for the
+        # "auth" endpoints in settings.py.
+        if self.action == "create":
+            self.throttle_scope = "order_create"
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

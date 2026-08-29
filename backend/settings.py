@@ -196,6 +196,11 @@ REST_FRAMEWORK = {
         "anon": "180/min",
         "user": "300/min",
         "auth": "5/min",
+        # Order creation is open to guests (no login required), so it needs
+        # its own cap independent of the generic anon rate above — otherwise
+        # the kitchen queue can be flooded with junk orders far faster than
+        # any real customer would ever place them.
+        "order_create": "20/min",
     },
 }
 
