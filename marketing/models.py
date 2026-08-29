@@ -1,5 +1,16 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
+MAX_REVIEW_PHOTO_SIZE_BYTES = 5 * 1024 * 1024
+
+
+def validate_review_photo_size(file):
+    """Caps review photo uploads at 5MB. Content itself is already validated
+    as a real image by ImageField (via Pillow) — this only guards against an
+    otherwise-valid, needlessly huge file being accepted and stored."""
+    if file.size > MAX_REVIEW_PHOTO_SIZE_BYTES:
+        raise ValidationError("Image must be 5MB or smaller.")
 
 
 class Promotion(models.Model):
@@ -46,7 +57,9 @@ class Review(models.Model):
     rating = models.PositiveSmallIntegerField()
     title = models.CharField(max_length=120)
     content = models.TextField()
-    customer_photo = models.ImageField(upload_to="reviews/", blank=True, null=True)
+    customer_photo = models.ImageField(
+        upload_to="reviews/", blank=True, null=True, validators=[validate_review_photo_size]
+    )
     approval_status = models.CharField(max_length=20, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
 
