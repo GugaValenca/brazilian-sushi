@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { createOrder, fetchDeliveryZones } from "@/lib/catalog";
+import { canSubmitOrder, computeDeliveryFee } from "@/lib/checkout";
 
 const CheckoutPage = () => {
   usePageMeta({
@@ -42,7 +43,7 @@ const CheckoutPage = () => {
     [deliveryZoneId, deliveryZones],
   );
 
-  const deliveryFee = orderType === "delivery" ? Number(selectedZone?.fee ?? 0) : 0;
+  const deliveryFee = computeDeliveryFee(orderType, selectedZone);
   const total = subtotal + deliveryFee;
   const isSignedIn = Boolean(isAuthenticated && user && tokens?.access);
 
@@ -69,7 +70,15 @@ const CheckoutPage = () => {
     },
   });
 
-  const canSubmit = items.length > 0 && (isSignedIn || (guestName && guestEmail && guestPhone)) && (orderType === "pickup" || deliveryZoneId);
+  const canSubmit = canSubmitOrder({
+    hasItems: items.length > 0,
+    isSignedIn,
+    guestName,
+    guestEmail,
+    guestPhone,
+    orderType,
+    deliveryZoneId,
+  });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
