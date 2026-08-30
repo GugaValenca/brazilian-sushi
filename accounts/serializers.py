@@ -132,10 +132,28 @@ class AdminCustomerSerializer(serializers.ModelSerializer):
             "verified_reason",
             "loyalty_completed_orders",
             "is_staff",
+            "is_superuser",
             "is_active",
             "date_joined",
         )
         read_only_fields = ("date_joined",)
+
+
+class SetCustomerPasswordSerializer(serializers.Serializer):
+    """Deliberately not a self-service reset (production has no email
+    provider configured — see README's Known Limitations). A superuser
+    setting a new staff member's password directly is the smallest real fix
+    that doesn't depend on that."""
+
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_password(self, value):
+        user = self.context.get("user")
+        try:
+            validate_password(value, user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
+        return value
 
 
 class AddressSerializer(serializers.ModelSerializer):

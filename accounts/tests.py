@@ -31,6 +31,95 @@ class CustomerAdminTests(APITestCase):
         self.assertEqual(self.customer.verified_reason, User.VerificationReason.IDENTITY)
 
 
+class CustomerAdminPrivilegeEscalationTests(APITestCase):
+    """Regression coverage for a real privilege-escalation gap: IsAdminUser
+    only requires is_staff, so without an extra guard any staff member could
+    grant themselves (or anyone else) is_staff/is_superuser through a plain
+    PATCH on this viewset."""
+
+    def setUp(self):
+        self.superuser = User.objects.create_superuser(
+            email="super@braziliansushi.com", username="super", password="StrongPass123!"
+        )
+        self.staff = User.objects.create_user(
+            email="plain-staff@braziliansushi.com", username="plainstaff", password="StrongPass123!", is_staff=True
+        )
+        self.other_staff = User.objects.create_user(
+            email="other-staff@braziliansushi.com", username="otherstaff", password="StrongPass123!", is_staff=True
+        )
+
+    def test_plain_staff_cannot_grant_themselves_superuser(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.patch(f"/api/accounts/customers/{self.staff.id}/", {"is_superuser": True}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.staff.refresh_from_db()
+        self.assertFalse(self.staff.is_superuser)
+
+    def test_plain_staff_cannot_revoke_another_staff_members_access(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.patch(
+            f"/api/accounts/customers/{self.other_staff.id}/", {"is_staff": False}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.other_staff.refresh_from_db()
+        self.assertTrue(self.other_staff.is_staff)
+
+    def test_plain_staff_can_still_update_unrelated_fields(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.patch(
+            f"/api/accounts/customers/{self.other_staff.id}/", {"first_name": "Updated"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.other_staff.refresh_from_db()
+        self.assertEqual(self.other_staff.first_name, "Updated")
+
+    def test_superuser_can_grant_staff_access(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.patch(
+            f"/api/accounts/customers/{self.other_staff.id}/", {"is_superuser": True}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.other_staff.refresh_from_db()
+        self.assertTrue(self.other_staff.is_superuser)
+
+    def test_plain_staff_cannot_set_a_password(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            f"/api/accounts/customers/{self.other_staff.id}/set_password/", {"password": "BrandNewPass123!"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_superuser_can_set_a_password(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.post(
+            f"/api/accounts/customers/{self.other_staff.id}/set_password/", {"password": "BrandNewPass123!"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.other_staff.refresh_from_db()
+        self.assertTrue(self.other_staff.check_password("BrandNewPass123!"))
+
+    def test_weak_password_is_rejected(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.post(
+            f"/api/accounts/customers/{self.other_staff.id}/set_password/", {"password": "password"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
 class SignupConfirmationTests(APITestCase):
     @patch("accounts.serializers.send_account_confirmation", return_value=["email"])
     def test_register_creates_inactive_user_and_returns_confirmation_channels(self, mocked_send_confirmation):

@@ -1,7 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from rest_framework import generics, permissions, status, viewsets
+from rest_framework import filters, generics, permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -15,6 +16,7 @@ from .serializers import (
     FavoriteMenuItemSerializer,
     RegisterSerializer,
     ResendConfirmationSerializer,
+    SetCustomerPasswordSerializer,
     UserSerializer,
 )
 from .services import send_account_confirmation
@@ -122,6 +124,31 @@ class CustomerAdminViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by("-date_joined")
     serializer_class = AdminCustomerSerializer
     permission_classes = [permissions.IsAdminUser]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["email", "username", "first_name", "last_name", "phone_number"]
+
+    def perform_update(self, serializer):
+        # IsAdminUser only requires is_staff, so without this check any
+        # staff member could hand themselves (or anyone else) is_staff or
+        # is_superuser through a plain PATCH -- a real privilege-escalation
+        # gap. Granting/revoking either flag now requires the *acting* user
+        # to already be a superuser.
+        escalation_fields = {"is_staff", "is_superuser"}
+        if escalation_fields & set(serializer.validated_data) and not self.request.user.is_superuser:
+            raise PermissionDenied("Only a superuser can change staff or superuser status.")
+        serializer.save()
+
+    @action(detail=True, methods=["post"])
+    def set_password(self, request, pk=None):
+        if not request.user.is_superuser:
+            raise PermissionDenied("Only a superuser can set another user's password.")
+
+        customer = self.get_object()
+        serializer = SetCustomerPasswordSerializer(data=request.data, context={"user": customer})
+        serializer.is_valid(raise_exception=True)
+        customer.set_password(serializer.validated_data["password"])
+        customer.save(update_fields=["password"])
+        return Response({"detail": "Password updated."})
 
     @action(detail=True, methods=["post"])
     def verify(self, request, pk=None):
