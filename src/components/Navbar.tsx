@@ -43,7 +43,7 @@ const Navbar = () => {
 
         <div className="hidden md:flex flex-1 items-center justify-end gap-4">
           {user?.is_staff && (
-            <Link to="/staff-dashboard" className="inline-flex items-center gap-2 text-sm font-semibold hover:text-primary">
+            <Link to="/admin" className="inline-flex items-center gap-2 text-sm font-semibold hover:text-primary">
               <LayoutDashboard className="w-4 h-4" /> Staff
             </Link>
           )}
@@ -106,7 +106,7 @@ const Navbar = () => {
                 {totalItems > 0 && <span className="text-primary text-sm">{totalItems}</span>}
               </Link>
               {user?.is_staff && (
-                <Link to="/staff-dashboard" onClick={() => setOpen(false)} className="inline-flex items-center gap-2 text-lg font-medium">
+                <Link to="/admin" onClick={() => setOpen(false)} className="inline-flex items-center gap-2 text-lg font-medium">
                   <LayoutDashboard className="w-5 h-5" /> Staff Dashboard
                 </Link>
               )}

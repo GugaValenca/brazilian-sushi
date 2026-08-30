@@ -136,7 +136,7 @@ export interface OrderResponse {
   created_at: string;
   items: OrderTrackingItem[];
   status_events: OrderTrackingEvent[];
-  payment_status: "not_required" | "pending" | "paid" | "failed";
+  payment_status: "not_required" | "pending" | "paid" | "failed" | "refunded";
   /** Present only on the create-order response, and only when Stripe is
    * configured on the backend — the frontend should redirect to it instead
    * of going straight to order tracking. */

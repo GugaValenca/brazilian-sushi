@@ -26,8 +26,8 @@ const loadLoginPage = () => import("./pages/LoginPage");
 const loadRegisterPage = () => import("./pages/RegisterPage");
 const loadConfirmAccountPage = () => import("./pages/ConfirmAccountPage");
 const loadAccountPage = () => import("./pages/AccountPage");
-const loadAdminDashboardPage = () => import("./pages/AdminDashboardPage");
 const loadNotFoundPage = () => import("./pages/NotFound");
+const loadAdminApp = () => import("./admin/AdminApp");
 
 const Index = lazy(loadIndexPage);
 const MenuPage = lazy(loadMenuPage);
@@ -38,8 +38,8 @@ const LoginPage = lazy(loadLoginPage);
 const RegisterPage = lazy(loadRegisterPage);
 const ConfirmAccountPage = lazy(loadConfirmAccountPage);
 const AccountPage = lazy(loadAccountPage);
-const AdminDashboardPage = lazy(loadAdminDashboardPage);
 const NotFound = lazy(loadNotFoundPage);
+const AdminApp = lazy(loadAdminApp);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -114,6 +114,40 @@ const ScrollToTop = () => {
   return null;
 };
 
+// Everything a storefront visitor sees: marketing chrome (Navbar/Footer/
+// FloatingButtons) around the public + customer-account routes. Split out
+// from App so /admin/* (below) can mount its own shell instead, with none
+// of this chrome.
+const StorefrontShell = () => (
+  <>
+    <a
+      href="#main-content"
+      className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-4 focus-visible:left-4 focus-visible:z-[100] focus-visible:rounded-lg focus-visible:bg-primary focus-visible:px-4 focus-visible:py-3 focus-visible:text-primary-foreground focus-visible:shadow-lg"
+    >
+      Skip to main content
+    </a>
+    <Navbar />
+    <main id="main-content">
+      <Suspense fallback={<div className="min-h-screen pt-24 md:pt-28"><div className="container py-16 text-center text-muted-foreground">Loading...</div></div>}>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/menu" element={<MenuPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/track-order" element={<OrderTrackingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/confirm-account" element={<ConfirmAccountPage />} />
+          <Route path="/account" element={<AccountPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+    </main>
+    <Footer />
+    <FloatingButtons />
+  </>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -124,32 +158,17 @@ const App = () => (
           <BrowserRouter>
             <AppWarmup />
             <ScrollToTop />
-            <a
-              href="#main-content"
-              className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-4 focus-visible:left-4 focus-visible:z-[100] focus-visible:rounded-lg focus-visible:bg-primary focus-visible:px-4 focus-visible:py-3 focus-visible:text-primary-foreground focus-visible:shadow-lg"
-            >
-              Skip to main content
-            </a>
-            <Navbar />
-            <main id="main-content">
-              <Suspense fallback={<div className="min-h-screen pt-24 md:pt-28"><div className="container py-16 text-center text-muted-foreground">Loading...</div></div>}>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/menu" element={<MenuPage />} />
-                  <Route path="/contact" element={<ContactPage />} />
-                  <Route path="/checkout" element={<CheckoutPage />} />
-                  <Route path="/track-order" element={<OrderTrackingPage />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
-                  <Route path="/confirm-account" element={<ConfirmAccountPage />} />
-                  <Route path="/account" element={<AccountPage />} />
-                  <Route path="/staff-dashboard" element={<AdminDashboardPage />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </main>
-            <Footer />
-            <FloatingButtons />
+            <Routes>
+              <Route
+                path="/admin/*"
+                element={
+                  <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">Loading...</div>}>
+                    <AdminApp />
+                  </Suspense>
+                }
+              />
+              <Route path="/*" element={<StorefrontShell />} />
+            </Routes>
           </BrowserRouter>
         </CartProvider>
       </AuthProvider>
