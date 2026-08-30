@@ -127,6 +127,15 @@ class CustomerAdminViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ["email", "username", "first_name", "last_name", "phone_number"]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        is_staff = self.request.query_params.get("is_staff")
+        if is_staff == "true":
+            queryset = queryset.filter(is_staff=True)
+        elif is_staff == "false":
+            queryset = queryset.filter(is_staff=False)
+        return queryset
+
     def perform_update(self, serializer):
         # IsAdminUser only requires is_staff, so without this check any
         # staff member could hand themselves (or anyone else) is_staff or

@@ -30,6 +30,16 @@ class CustomerAdminTests(APITestCase):
         self.assertTrue(self.customer.is_verified_customer)
         self.assertEqual(self.customer.verified_reason, User.VerificationReason.IDENTITY)
 
+    def test_can_filter_customer_list_by_staff_status(self):
+        """Backs the Staff admin page, which only lists staff accounts."""
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get("/api/accounts/customers/", {"is_staff": "true"})
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertIn(self.admin.id, ids)
+        self.assertNotIn(self.customer.id, ids)
+
 
 class CustomerAdminPrivilegeEscalationTests(APITestCase):
     """Regression coverage for a real privilege-escalation gap: IsAdminUser
