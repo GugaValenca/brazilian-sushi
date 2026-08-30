@@ -38,7 +38,9 @@ describe("apiRequest — silent token refresh", () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/accounts/refresh/")) {
-        return jsonResponse({ access: "fresh-access" });
+        // SIMPLE_JWT.ROTATE_REFRESH_TOKENS is on -- every refresh response
+        // carries a new refresh token too, which must be persisted.
+        return jsonResponse({ access: "fresh-access", refresh: "rotated-refresh" });
       }
       if (url.endsWith("/accounts/profile/")) {
         profileCallCount += 1;
@@ -57,7 +59,7 @@ describe("apiRequest — silent token refresh", () => {
 
     expect(result).toEqual({ id: 1, email: "user@example.com" });
     expect(profileCallCount).toBe(2);
-    expect(getTokens()).toEqual({ access: "fresh-access", refresh: "valid-refresh" });
+    expect(getTokens()).toEqual({ access: "fresh-access", refresh: "rotated-refresh" });
   });
 
   it("clears tokens and surfaces the original 401 when the refresh token is also invalid", async () => {
@@ -85,7 +87,7 @@ describe("apiRequest — silent token refresh", () => {
       const url = String(input);
       if (url.endsWith("/accounts/refresh/")) {
         refreshCallCount += 1;
-        return jsonResponse({ access: "fresh-access" });
+        return jsonResponse({ access: "fresh-access", refresh: "rotated-refresh" });
       }
       // Every non-refresh call is treated as already using the stale token
       // and rejected, forcing both concurrent requests to go through the

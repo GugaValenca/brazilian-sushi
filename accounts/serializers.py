@@ -179,6 +179,10 @@ class ConfirmAccountSerializer(serializers.Serializer):
     token = serializers.UUIDField()
 
 
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+
 class BrazilianSushiTokenObtainPairSerializer(TokenObtainPairSerializer):
     default_error_messages = {
         "inactive_account": "Your account is still pending confirmation. Please confirm your signup link before signing in.",

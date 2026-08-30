@@ -3,6 +3,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   fetchProfile,
   login as loginRequest,
+  logout as logoutRequest,
   register as registerRequest,
   type LoginPayload,
   type RegisterPayload,
@@ -75,6 +76,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
+    // Best-effort: blacklists the refresh token server-side so it can't be
+    // used again, instead of only ever discarding it locally. Fire-and-forget
+    // — the UI clears its own session state immediately either way, and
+    // callers of logout() don't await it, so this must never block or throw.
+    if (tokens?.refresh) {
+      logoutRequest(tokens.refresh).catch(() => {
+        // Already expired/invalid, or the request never reached the server
+        // (offline) — either way there's nothing more this can do locally.
+      });
+    }
     persistTokens(null);
     setUser(null);
   };

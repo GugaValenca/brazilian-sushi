@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "drf_spectacular",
     "accounts",
@@ -194,8 +195,16 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+    # Secure by default: any endpoint added in the future that forgets to
+    # declare its own permission_classes now fails closed (401) instead of
+    # silently becoming public. Every existing view in the project already
+    # declares its own permission_classes/get_permissions explicitly
+    # regardless of this default (verified across accounts/menu/orders/
+    # marketing/payments) -- including the two auth endpoints that must
+    # stay public (LoginView, RefreshView), which previously relied on this
+    # setting being AllowAny without saying so.
     "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 12,
@@ -236,6 +245,15 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "AUTH_HEADER_TYPES": ("Bearer",),
+    # Previously a single 7-day refresh token was reused for its entire
+    # lifetime, and "logging out" only ever cleared it client-side -- a
+    # token that had already leaked (XSS, a shared/stolen device) stayed
+    # valid regardless. Rotation issues a fresh refresh token on every use
+    # and blacklists the one just spent, and the explicit logout endpoint
+    # (accounts/views.py LogoutView) blacklists the current one immediately
+    # instead of just discarding it locally.
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 EMAIL_HOST = env_str("EMAIL_HOST")

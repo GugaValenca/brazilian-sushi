@@ -62,11 +62,15 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new Error(parsedMessage || errorBody || `Request failed with status ${response.status}`);
   }
 
-  if (response.status === 204) {
+  // Handles 204 and 205 (e.g. LogoutView) alike, plus any other success
+  // response that happens to come back with an empty body, instead of
+  // hardcoding one specific status code and letting response.json() throw
+  // a confusing parse error on the next one that has no content either.
+  const rawBody = await response.text();
+  if (!rawBody.trim()) {
     return undefined as T;
   }
-
-  return response.json() as Promise<T>;
+  return JSON.parse(rawBody) as T;
 }
 
 // Access tokens live 30 minutes (see SIMPLE_JWT in backend/settings.py).
@@ -88,8 +92,13 @@ async function refreshAccessToken(): Promise<string | null> {
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("refresh failed");
-        const data = (await response.json()) as { access: string };
-        setTokens({ ...tokens, access: data.access });
+        // The backend rotates refresh tokens on every use and blacklists
+        // the one just spent (see SIMPLE_JWT.ROTATE_REFRESH_TOKENS) — the
+        // response always carries a new one now, and it must be stored, or
+        // the *next* silent refresh would retry with an already-blacklisted
+        // token and force the user all the way back to a manual login.
+        const data = (await response.json()) as { access: string; refresh: string };
+        setTokens({ access: data.access, refresh: data.refresh });
         return data.access;
       })
       .catch(() => {

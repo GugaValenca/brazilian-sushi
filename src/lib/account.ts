@@ -139,6 +139,20 @@ export function register(payload: RegisterPayload) {
   });
 }
 
+// Best-effort: invalidates the refresh token server-side (see LogoutView)
+// instead of just discarding it client-side, so a token that leaked or was
+// left on a shared device doesn't stay valid for its full lifetime after
+// the user explicitly signs out. Deliberately not passed an access token —
+// it may already be expired for an idle session, and possessing the
+// refresh token itself is what authorizes blacklisting it (same model the
+// refresh endpoint itself uses).
+export function logout(refreshToken: string) {
+  return apiRequest<void>("/accounts/logout/", {
+    method: "POST",
+    body: JSON.stringify({ refresh: refreshToken }),
+  });
+}
+
 export function confirmAccount(token: string) {
   return apiRequest<ConfirmationResponse>("/accounts/confirm-account/", {
     method: "POST",

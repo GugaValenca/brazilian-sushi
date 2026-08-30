@@ -53,3 +53,58 @@ describe("AuthContext.login — regression: no duplicate/racing profile fetch", 
     expect(result.current.isAuthenticated).toBe(true);
   });
 });
+
+describe("AuthContext.logout", () => {
+  beforeEach(() => {
+    setTokens(null);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("clears the session immediately and blacklists the refresh token in the background", async () => {
+    setTokens({ access: "access-1", refresh: "refresh-1" });
+
+    let logoutCallBody: unknown;
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/accounts/logout/")) {
+        logoutCallBody = init?.body ? JSON.parse(init.body as string) : undefined;
+        return jsonResponse(undefined, 205);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    act(() => {
+      result.current.logout();
+    });
+
+    // The session clears synchronously -- it does not wait on the network call.
+    expect(getTokens()).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(logoutCallBody).toEqual({ refresh: "refresh-1" });
+  });
+
+  it("does not throw when the logout request fails (e.g. offline)", async () => {
+    setTokens({ access: "access-1", refresh: "refresh-1" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("network error")),
+    );
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    expect(() => {
+      act(() => {
+        result.current.logout();
+      });
+    }).not.toThrow();
+    expect(getTokens()).toBeNull();
+  });
+});

@@ -211,6 +211,64 @@ class LoginThrottleTests(APITestCase):
         self.assertEqual(valid_login_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
+class LogoutAndTokenRotationTests(APITestCase):
+    """Logging out used to only ever discard the refresh token client-side —
+    the token itself stayed valid on the server for its full 7-day lifetime.
+    These cover the fix: an explicit blacklist on logout, and rotation so a
+    refresh token can only ever be used once."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="logout-test@braziliansushi.com", username="logouttest", password="StrongPass123!"
+        )
+
+    def _login(self):
+        response = self.client.post(
+            reverse("token_obtain_pair"), {"email": self.user.email, "password": "StrongPass123!"}, format="json"
+        )
+        return response.data["access"], response.data["refresh"]
+
+    def test_logout_blacklists_the_refresh_token(self):
+        _, refresh = self._login()
+
+        logout_response = self.client.post(reverse("logout"), {"refresh": refresh}, format="json")
+        self.assertEqual(logout_response.status_code, status.HTTP_205_RESET_CONTENT)
+
+        reuse_response = self.client.post(reverse("token_refresh"), {"refresh": refresh}, format="json")
+        self.assertEqual(reuse_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_logout_does_not_require_a_still_valid_access_token(self):
+        """The access token may already be expired by the time someone logs
+        out of an idle session -- logout must not depend on it."""
+        _, refresh = self._login()
+        self.client.credentials()  # no Authorization header at all
+
+        response = self.client.post(reverse("logout"), {"refresh": refresh}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_205_RESET_CONTENT)
+
+    def test_logout_with_an_already_invalid_token_still_succeeds(self):
+        response = self.client.post(reverse("logout"), {"refresh": "not-a-real-token"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_205_RESET_CONTENT)
+
+    def test_refreshing_rotates_the_refresh_token_and_blacklists_the_old_one(self):
+        _, refresh = self._login()
+
+        first_refresh_response = self.client.post(reverse("token_refresh"), {"refresh": refresh}, format="json")
+        self.assertEqual(first_refresh_response.status_code, status.HTTP_200_OK)
+        new_refresh = first_refresh_response.data["refresh"]
+        self.assertNotEqual(new_refresh, refresh)
+
+        # The old refresh token was rotated out -- reusing it must fail now.
+        reuse_response = self.client.post(reverse("token_refresh"), {"refresh": refresh}, format="json")
+        self.assertEqual(reuse_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # The new one still works.
+        second_refresh_response = self.client.post(reverse("token_refresh"), {"refresh": new_refresh}, format="json")
+        self.assertEqual(second_refresh_response.status_code, status.HTTP_200_OK)
+
+
 class LoginEnumerationTests(APITestCase):
     """Regression tests for a fixed user-enumeration leak: the login
     endpoint used to reveal that an email belonged to a registered-but-

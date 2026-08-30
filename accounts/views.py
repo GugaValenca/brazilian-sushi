@@ -6,7 +6,9 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .serializers import (
     BrazilianSushiTokenObtainPairSerializer,
@@ -14,6 +16,7 @@ from .serializers import (
     AddressSerializer,
     AdminCustomerSerializer,
     FavoriteMenuItemSerializer,
+    LogoutSerializer,
     RegisterSerializer,
     ResendConfirmationSerializer,
     SetCustomerPasswordSerializer,
@@ -34,8 +37,52 @@ class RegisterView(generics.CreateAPIView):
 
 class LoginView(TokenObtainPairView):
     serializer_class = BrazilianSushiTokenObtainPairSerializer
+    # TokenObtainPairView doesn't set its own permission_classes, so this was
+    # silently relying on REST_FRAMEWORK's DEFAULT_PERMISSION_CLASSES being
+    # AllowAny -- the only view in the project depending on that global
+    # default rather than declaring its own. Made explicit so the global
+    # default can be tightened to IsAuthenticated (see settings.py) without
+    # breaking the one endpoint that must stay public no matter what.
+    permission_classes = [permissions.AllowAny]
     throttle_scope = "auth"
     throttle_classes = [ScopedRateThrottle]
+
+
+class RefreshView(TokenRefreshView):
+    """Same reasoning as LoginView above: TokenRefreshView doesn't declare
+    its own permission_classes either, and a refresh request has no access
+    token to authenticate with in the first place (only a refresh token in
+    the body) -- it must stay explicitly public."""
+
+    permission_classes = [permissions.AllowAny]
+
+
+class LogoutView(APIView):
+    """Blacklists the given refresh token immediately, instead of the
+    previous behavior where "logging out" only ever discarded it
+    client-side -- a leaked or left-behind token stayed valid for its full
+    lifetime regardless. AllowAny (like RefreshView above): possessing the
+    refresh token itself is what proves the right to invalidate it, the
+    same trust model the refresh endpoint already uses, so this doesn't
+    need -- and shouldn't require -- a still-valid access token too (the
+    access token may well have already expired by the time someone logs
+    out of an idle session)."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            RefreshToken(serializer.validated_data["refresh"]).blacklist()
+        except TokenError:
+            # Already expired, malformed, or already blacklisted -- the
+            # caller's goal (this token must not work anymore) is already
+            # satisfied either way.
+            pass
+
+        return Response(status=status.HTTP_205_RESET_CONTENT)
 
 
 class ConfirmAccountView(APIView):
