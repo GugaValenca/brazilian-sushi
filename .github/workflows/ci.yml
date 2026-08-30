@@ -37,3 +37,35 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python manage.py check
       - run: python manage.py test
+
+  # Vercel builds and deploys the app on every push to main, but it only
+  # packages code -- nothing runs `migrate` against the production database.
+  # A migration merged without a manual follow-up step silently left
+  # production's schema behind for months (see the payment_status incident).
+  # This job closes that gap: after the backend test job passes, apply any
+  # pending migrations to production automatically, the same "deploy
+  # includes migrate" guarantee platforms like Heroku/Render provide natively.
+  migrate-production:
+    name: Apply pending migrations to production
+    needs: backend
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_DEBUG: "false"
+      DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+      DJANGO_ALLOWED_HOSTS: ${{ secrets.DJANGO_ALLOWED_HOSTS }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Fail loudly if the production DB secret isn't configured
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not set -- see README's Deployment section for setup."
+            exit 1
+          fi
+      - run: python manage.py migrate --noinput

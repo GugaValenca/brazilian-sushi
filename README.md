@@ -219,6 +219,32 @@ Every variable lives in `.env.example` with a safe default. The notable groups:
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | No | Enables real Stripe Checkout on order creation. Blank = checkout works exactly as before, no payment step. |
 | `DJANGO_SENTRY_DSN`, `VITE_SENTRY_DSN` | No | Enables error monitoring for the API and the frontend respectively. |
 
+## 🚢 Deploying & Database Migrations
+
+Vercel builds and deploys the app on every push to `main`, but it only packages
+code — it has no step that applies Django migrations to the production
+database. A migration merged without a manual follow-up once left
+production's schema silently behind for months (a missing column broke every
+authenticated request that touched orders, until it was caught and fixed).
+
+To close that gap, `.github/workflows/ci.yml` has a `migrate-production` job
+that runs `python manage.py migrate` against production automatically after
+the backend test job passes on `main`, the same "deploy includes migrate"
+guarantee platforms like Heroku or Render provide natively. For it to work,
+add these repository secrets under **Settings → Secrets and variables →
+Actions**, matching the same values already configured in Vercel:
+
+- `DATABASE_URL` — production's Neon connection string.
+- `DJANGO_SECRET_KEY` — production's secret key.
+- `DJANGO_ALLOWED_HOSTS` — production's allowed hosts.
+
+Without `DATABASE_URL` set, the job fails loudly with a clear error instead
+of silently skipping the migration (which is what let the original gap go
+unnoticed). If you'd rather not grant CI direct write access to production,
+the safe fallback is running `python manage.py migrate` by hand (with
+production's `DATABASE_URL` exported locally) after any deploy that includes
+a new migration — check `git log` for new files under `*/migrations/`.
+
 ## 🧱 Project Structure
 
 ```text
