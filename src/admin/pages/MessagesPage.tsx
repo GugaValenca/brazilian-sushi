@@ -17,7 +17,7 @@ import {
 import ConfirmDialog from "@/admin/components/ConfirmDialog";
 import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 const STATUS_FILTERS = [
   { value: "unresolved", label: "Unresolved" },
@@ -71,16 +71,24 @@ const MessagesPage = () => {
   const columns: ColumnDef<StaffContactMessage, unknown>[] = [
     { accessorKey: "name", header: "Name" },
     { accessorKey: "email", header: "Email" },
-    { accessorKey: "phone", header: "Phone" },
+    {
+      accessorKey: "phone",
+      header: "Phone",
+      // Lower-priority columns hide below xl instead of ever forcing a
+      // horizontal scrollbar (page- or table-level) at a realistic window
+      // width -- Name/Email/Message/Actions stay visible at every size.
+      meta: { className: "hidden xl:table-cell" },
+    },
     {
       id: "message",
       header: "Message",
-      cell: ({ row }) => <p className="max-w-md truncate text-sm text-muted-foreground">{row.original.message}</p>,
+      cell: ({ row }) => <p className="max-w-[14rem] truncate text-sm text-muted-foreground lg:max-w-md">{row.original.message}</p>,
     },
     {
       accessorKey: "created_at",
       header: "Received",
       cell: ({ row }) => new Date(row.original.created_at).toLocaleString("en-US"),
+      meta: { className: "hidden lg:table-cell" },
     },
     {
       id: "actions",
@@ -112,10 +120,10 @@ const MessagesPage = () => {
     },
   ];
 
+  useAdminPageHeader("Messages", "Contact form submissions from the website.");
+
   return (
     <div>
-      <PageHeader title="Messages" description="Contact form submissions from the website." />
-
       <div className="mb-4">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-[220px]">

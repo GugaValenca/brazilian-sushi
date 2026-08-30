@@ -23,7 +23,7 @@ import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
 import FormDialog from "@/admin/components/FormDialog";
 import FormField from "@/admin/components/FormField";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 import StatusBadge from "@/admin/components/StatusBadge";
 
 const orderColumns: ColumnDef<AdminOrderListItem, unknown>[] = [
@@ -34,6 +34,7 @@ const orderColumns: ColumnDef<AdminOrderListItem, unknown>[] = [
     accessorKey: "created_at",
     header: "Placed",
     cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString("en-US"),
+    meta: { className: "hidden lg:table-cell" },
   },
 ];
 
@@ -111,6 +112,12 @@ const CustomerDetailPage = () => {
     onError: (error: Error) => toast.error(error.message || "Could not set the password."),
   });
 
+  useAdminPageHeader(
+    customer ? `${customer.first_name} ${customer.last_name}`.trim() || customer.username : "Customer",
+    customer?.email,
+    customer?.is_verified_customer ? <StatusBadge status="Verified" kind="approval" /> : undefined,
+  );
+
   if (isLoading || !customer) {
     return <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">Loading customer...</div>;
   }
@@ -122,12 +129,6 @@ const CustomerDetailPage = () => {
       <Link to="/admin/customers" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to customers
       </Link>
-
-      <PageHeader
-        title={`${customer.first_name} ${customer.last_name}`.trim() || customer.username}
-        description={customer.email}
-        actions={customer.is_verified_customer ? <StatusBadge status="Verified" kind="approval" /> : null}
-      />
 
       <div className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
         <div className="space-y-6">

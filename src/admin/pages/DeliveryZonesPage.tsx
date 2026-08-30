@@ -22,7 +22,7 @@ import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
 import FormDialog from "@/admin/components/FormDialog";
 import FormField from "@/admin/components/FormField";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 const emptyForm: AdminDeliveryZonePayload = {
   name: "",
@@ -118,8 +118,12 @@ const DeliveryZonesPage = () => {
       id: "minimum_order",
       header: "Min. order",
       cell: ({ row }) => `$${Number(row.original.minimum_order).toFixed(2)}`,
+      // Lower-priority columns hide below xl instead of ever forcing a
+      // horizontal scrollbar (page- or table-level) at a realistic window
+      // width -- Name/Postal code/Fee/Status/Actions stay visible always.
+      meta: { className: "hidden xl:table-cell" },
     },
-    { accessorKey: "average_minutes", header: "Est. minutes" },
+    { accessorKey: "average_minutes", header: "Est. minutes", meta: { className: "hidden lg:table-cell" } },
     {
       id: "active",
       header: "Status",
@@ -151,18 +155,16 @@ const DeliveryZonesPage = () => {
     },
   ];
 
+  useAdminPageHeader(
+    "Delivery Zones",
+    "Manage the postal codes, fees, and estimated delivery times customers see at checkout.",
+    <Button type="button" onClick={openCreate}>
+      <Plus className="h-4 w-4" aria-hidden="true" /> Add zone
+    </Button>,
+  );
+
   return (
     <div>
-      <PageHeader
-        title="Delivery Zones"
-        description="Manage the postal codes, fees, and estimated delivery times customers see at checkout."
-        actions={
-          <Button type="button" onClick={openCreate}>
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add zone
-          </Button>
-        }
-      />
-
       <DataTable
         columns={columns}
         data={data?.results ?? []}

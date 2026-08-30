@@ -22,7 +22,7 @@ import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
 import FormDialog from "@/admin/components/FormDialog";
 import FormField from "@/admin/components/FormField";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 function toDatetimeLocal(value: string) {
   return value ? value.slice(0, 16) : "";
@@ -117,7 +117,14 @@ const CouponsPage = () => {
 
   const columns: ColumnDef<StaffCoupon, unknown>[] = [
     { accessorKey: "code", header: "Code" },
-    { accessorKey: "description", header: "Description" },
+    {
+      accessorKey: "description",
+      header: "Description",
+      // Lower-priority columns hide below xl instead of ever forcing a
+      // horizontal scrollbar (page- or table-level) at a realistic window
+      // width -- Code/Discount/Status/Actions stay visible at every size.
+      meta: { className: "hidden xl:table-cell" },
+    },
     {
       id: "value",
       header: "Discount",
@@ -130,11 +137,13 @@ const CouponsPage = () => {
       id: "minimum_order",
       header: "Min. order",
       cell: ({ row }) => `$${Number(row.original.minimum_order).toFixed(2)}`,
+      meta: { className: "hidden lg:table-cell" },
     },
     {
       id: "verified_only",
       header: "Verified only",
       cell: ({ row }) => (row.original.verified_only ? "Yes" : "No"),
+      meta: { className: "hidden xl:table-cell" },
     },
     {
       id: "active",
@@ -167,18 +176,16 @@ const CouponsPage = () => {
     },
   ];
 
+  useAdminPageHeader(
+    "Coupons",
+    "Create and manage discount codes customers can apply at checkout.",
+    <Button type="button" onClick={openCreate}>
+      <Plus className="h-4 w-4" aria-hidden="true" /> Add coupon
+    </Button>,
+  );
+
   return (
     <div>
-      <PageHeader
-        title="Coupons"
-        description="Create and manage discount codes customers can apply at checkout."
-        actions={
-          <Button type="button" onClick={openCreate}>
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add coupon
-          </Button>
-        }
-      />
-
       <DataTable
         columns={columns}
         data={data ?? []}

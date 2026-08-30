@@ -9,8 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { fetchAdminOrderDetail, refundOrder, updateOrderStatus, type AdminOrderDetail } from "@/lib/staff";
 import ConfirmDialog from "@/admin/components/ConfirmDialog";
-import PageHeader from "@/admin/components/PageHeader";
 import StatusBadge from "@/admin/components/StatusBadge";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 /** Next legal status per current status, mirroring the order lifecycle this
  * app models (see orders/models.py Order.Status). Delivered/cancelled are
@@ -87,6 +87,20 @@ const OrderDetailPage = () => {
     onError: () => toast.error("Could not process the refund. Check the Stripe configuration."),
   });
 
+  // Called unconditionally (before the loading early-return below) since
+  // hooks can't follow it -- falls back to a plain title while the order is
+  // still loading, then fills in the status badges once it arrives.
+  useAdminPageHeader(
+    order ? `Order #${order.id}` : "Order",
+    order ? `Placed ${new Date(order.created_at).toLocaleString("en-US")}` : undefined,
+    order ? (
+      <>
+        <StatusBadge status={order.status} kind="order" />
+        <StatusBadge status={order.payment_status} kind="payment" />
+      </>
+    ) : undefined,
+  );
+
   if (isLoading || !order) {
     return <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">Loading order...</div>;
   }
@@ -100,17 +114,6 @@ const OrderDetailPage = () => {
       <Link to="/admin/orders" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to orders
       </Link>
-
-      <PageHeader
-        title={`Order #${order.id}`}
-        description={`Placed ${new Date(order.created_at).toLocaleString("en-US")}`}
-        actions={
-          <>
-            <StatusBadge status={order.status} kind="order" />
-            <StatusBadge status={order.payment_status} kind="payment" />
-          </>
-        }
-      />
 
       <div className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
         <div className="space-y-6">

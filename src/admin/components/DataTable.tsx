@@ -17,6 +17,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData, TValue> {
+    /** Applied to both the header and body cells of this column -- the
+     * mechanism every wide admin table uses to hide a lower-priority column
+     * below a breakpoint (e.g. "hidden lg:table-cell") instead of ever
+     * needing a horizontal scrollbar, on the page or on the table itself,
+     * at any realistic window width. */
+    className?: string;
+  }
+}
+
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
@@ -85,7 +97,10 @@ function DataTable<TData>({
                 {headerGroup.headers.map((header) => {
                   const canSort = header.column.getCanSort();
                   return (
-                    <TableHead key={header.id} className="whitespace-nowrap">
+                    <TableHead
+                      key={header.id}
+                      className={cn("whitespace-nowrap px-3", header.column.columnDef.meta?.className)}
+                    >
                       {header.isPlaceholder ? null : canSort ? (
                         <button
                           type="button"
@@ -108,8 +123,8 @@ function DataTable<TData>({
             {isLoading ? (
               Array.from({ length: 5 }).map((_, rowIndex) => (
                 <TableRow key={`skeleton-${rowIndex}`}>
-                  {columns.map((_, colIndex) => (
-                    <TableCell key={colIndex}>
+                  {columns.map((column, colIndex) => (
+                    <TableCell key={colIndex} className={cn("px-3", column.meta?.className)}>
                       <Skeleton className="h-5 w-full max-w-[160px]" />
                     </TableCell>
                   ))}
@@ -129,7 +144,9 @@ function DataTable<TData>({
                   className={cn(onRowClick && "cursor-pointer")}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id} className={cn("px-3", cell.column.columnDef.meta?.className)}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))

@@ -11,7 +11,7 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import { fetchAdminCustomers, type StaffCustomer } from "@/lib/staff";
 import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 const columns: ColumnDef<StaffCustomer, unknown>[] = [
   {
@@ -26,7 +26,14 @@ const columns: ColumnDef<StaffCustomer, unknown>[] = [
       </div>
     ),
   },
-  { accessorKey: "phone_number", header: "Phone" },
+  {
+    accessorKey: "phone_number",
+    header: "Phone",
+    // Lower-priority columns hide below xl instead of ever forcing a
+    // horizontal scrollbar (page- or table-level) at a realistic window
+    // width -- Customer/Verified/Completed orders/Staff stay visible always.
+    meta: { className: "hidden xl:table-cell" },
+  },
   {
     id: "verified",
     header: "Verified",
@@ -49,6 +56,7 @@ const columns: ColumnDef<StaffCustomer, unknown>[] = [
     accessorKey: "date_joined",
     header: "Joined",
     cell: ({ row }) => new Date(row.original.date_joined).toLocaleDateString("en-US"),
+    meta: { className: "hidden xl:table-cell" },
   },
 ];
 
@@ -75,10 +83,10 @@ const CustomersPage = () => {
     setSearch(searchInput.trim());
   };
 
+  useAdminPageHeader("Customers", "Look up customer accounts, verification status, and order history.");
+
   return (
     <div>
-      <PageHeader title="Customers" description="Look up customer accounts, verification status, and order history." />
-
       <form onSubmit={handleSearchSubmit} className="mb-4 flex max-w-md gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

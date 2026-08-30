@@ -23,7 +23,7 @@ import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
 import FormDialog from "@/admin/components/FormDialog";
 import FormField from "@/admin/components/FormField";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 function toDatetimeLocal(value: string) {
   return value ? value.slice(0, 16) : "";
@@ -128,6 +128,10 @@ const PromotionsPage = () => {
       id: "audience",
       header: "Audience",
       cell: ({ row }) => AUDIENCE_OPTIONS.find((option) => option.value === row.original.audience)?.label ?? row.original.audience,
+      // Lower-priority columns hide below xl instead of ever forcing a
+      // horizontal scrollbar (page- or table-level) at a realistic window
+      // width -- Title/Runs/Status/Actions stay visible at every size.
+      meta: { className: "hidden xl:table-cell" },
     },
     {
       id: "window",
@@ -135,7 +139,12 @@ const PromotionsPage = () => {
       cell: ({ row }) =>
         `${new Date(row.original.starts_at).toLocaleDateString("en-US")} - ${new Date(row.original.ends_at).toLocaleDateString("en-US")}`,
     },
-    { id: "featured", header: "Featured", cell: ({ row }) => (row.original.featured ? "Yes" : "No") },
+    {
+      id: "featured",
+      header: "Featured",
+      cell: ({ row }) => (row.original.featured ? "Yes" : "No"),
+      meta: { className: "hidden lg:table-cell" },
+    },
     {
       id: "active",
       header: "Status",
@@ -167,18 +176,16 @@ const PromotionsPage = () => {
     },
   ];
 
+  useAdminPageHeader(
+    "Promotions",
+    "Manage the marketing promotions shown to customers on the site.",
+    <Button type="button" onClick={openCreate}>
+      <Plus className="h-4 w-4" aria-hidden="true" /> Add promotion
+    </Button>,
+  );
+
   return (
     <div>
-      <PageHeader
-        title="Promotions"
-        description="Manage the marketing promotions shown to customers on the site."
-        actions={
-          <Button type="button" onClick={openCreate}>
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add promotion
-          </Button>
-        }
-      />
-
       <DataTable
         columns={columns}
         data={data ?? []}

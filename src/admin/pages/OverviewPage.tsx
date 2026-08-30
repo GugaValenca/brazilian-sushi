@@ -7,7 +7,7 @@ import { ChefHat, MapPin, MessageSquare, Percent, Ticket, TrendingUp, Truck, Use
 import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { fetchStaffSummary } from "@/lib/staff";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 const QUICK_LINKS = [
   { to: "/admin/orders", label: "Orders", icon: Truck },
@@ -23,6 +23,10 @@ const OverviewPage = () => {
   usePageMeta({ title: "Overview | Admin", description: "Operations overview.", robots: "noindex,nofollow" });
   const { user, tokens } = useAuth();
   const token = tokens?.access;
+  useAdminPageHeader(
+    `Welcome back${user?.first_name ? `, ${user.first_name}` : ""}`,
+    "Here's what's happening across the restaurant right now.",
+  );
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ["admin-summary", token],
@@ -41,8 +45,6 @@ const OverviewPage = () => {
 
   return (
     <div>
-      <PageHeader title={`Welcome back${user?.first_name ? `, ${user.first_name}` : ""}`} description="Here's what's happening across the restaurant right now." />
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Incoming orders" value={summary?.received} isLoading={isLoading} />
         <SummaryCard label="In kitchen" value={(summary?.confirmed ?? 0) + (summary?.preparing ?? 0)} isLoading={isLoading} />

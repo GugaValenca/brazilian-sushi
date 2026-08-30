@@ -13,7 +13,7 @@ import { fetchAdminCustomers, updateCustomer, type StaffCustomer } from "@/lib/s
 import ConfirmDialog from "@/admin/components/ConfirmDialog";
 import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 const StaffPage = () => {
   usePageMeta({ title: "Staff | Admin", description: "Manage staff access.", robots: "noindex,nofollow" });
@@ -78,6 +78,19 @@ const StaffPage = () => {
     setGrantSearch(grantSearchInput.trim());
   };
 
+  // Called unconditionally (before the superuser early-return below) since
+  // hooks can't follow it -- the description/action are only shown once
+  // authorization is confirmed, same as everything else on this page.
+  useAdminPageHeader(
+    "Staff",
+    currentUser?.is_superuser ? "Superuser-only: grant or revoke access to the admin area." : undefined,
+    currentUser?.is_superuser ? (
+      <Button type="button" onClick={() => setGrantOpen(true)}>
+        <UserPlus className="h-4 w-4" aria-hidden="true" /> Grant access
+      </Button>
+    ) : undefined,
+  );
+
   // The sidebar already hides this link from non-superusers, but that's a
   // display nicety, not a guard -- anyone can type /admin/staff directly.
   if (!currentUser?.is_superuser) {
@@ -119,6 +132,7 @@ const StaffPage = () => {
       accessorKey: "date_joined",
       header: "Joined",
       cell: ({ row }) => new Date(row.original.date_joined).toLocaleDateString("en-US"),
+      meta: { className: "hidden lg:table-cell" },
     },
     {
       id: "actions",
@@ -140,16 +154,6 @@ const StaffPage = () => {
 
   return (
     <div>
-      <PageHeader
-        title="Staff"
-        description="Superuser-only: grant or revoke access to the admin area."
-        actions={
-          <Button type="button" onClick={() => setGrantOpen(true)}>
-            <UserPlus className="h-4 w-4" aria-hidden="true" /> Grant access
-          </Button>
-        }
-      />
-
       <DataTable
         columns={columns}
         data={data?.results ?? []}

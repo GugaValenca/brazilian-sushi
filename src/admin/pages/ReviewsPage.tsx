@@ -12,7 +12,7 @@ import { type StaffReview, deleteReview, fetchReviewsAdmin, updateReviewStatus }
 import ConfirmDialog from "@/admin/components/ConfirmDialog";
 import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 import StatusBadge from "@/admin/components/StatusBadge";
 
 const STATUS_FILTERS = [
@@ -77,11 +77,18 @@ const ReviewsPage = () => {
         </span>
       ),
     },
-    { accessorKey: "title", header: "Title" },
+    {
+      accessorKey: "title",
+      header: "Title",
+      // Lower-priority columns hide below xl instead of ever forcing a
+      // horizontal scrollbar (page- or table-level) at a realistic window
+      // width -- Customer/Rating/Review/Status/Actions stay visible always.
+      meta: { className: "hidden xl:table-cell" },
+    },
     {
       id: "content",
       header: "Review",
-      cell: ({ row }) => <p className="max-w-sm truncate text-sm text-muted-foreground">{row.original.content}</p>,
+      cell: ({ row }) => <p className="max-w-[16rem] truncate text-sm text-muted-foreground lg:max-w-sm">{row.original.content}</p>,
     },
     {
       accessorKey: "approval_status",
@@ -92,6 +99,7 @@ const ReviewsPage = () => {
       accessorKey: "created_at",
       header: "Submitted",
       cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString("en-US"),
+      meta: { className: "hidden lg:table-cell" },
     },
     {
       id: "actions",
@@ -128,10 +136,10 @@ const ReviewsPage = () => {
     },
   ];
 
+  useAdminPageHeader("Reviews", "Approve or reject customer reviews before they appear on the site.");
+
   return (
     <div>
-      <PageHeader title="Reviews" description="Approve or reject customer reviews before they appear on the site." />
-
       <div className="mb-4">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-[220px]">

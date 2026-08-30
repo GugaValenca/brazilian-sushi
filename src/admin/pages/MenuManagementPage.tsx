@@ -38,7 +38,7 @@ import DataTable from "@/admin/components/DataTable";
 import EmptyState from "@/admin/components/EmptyState";
 import FormDialog from "@/admin/components/FormDialog";
 import FormField from "@/admin/components/FormField";
-import PageHeader from "@/admin/components/PageHeader";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 const AVAILABILITY_OPTIONS = [
   { value: "available", label: "Available" },
@@ -526,7 +526,14 @@ const MenuManagementPage = () => {
 
   const columns: ColumnDef<MenuApiItem, unknown>[] = [
     { accessorKey: "name", header: "Item" },
-    { accessorKey: "category_name", header: "Category" },
+    {
+      accessorKey: "category_name",
+      header: "Category",
+      // Lower-priority columns hide below xl instead of ever forcing a
+      // horizontal scrollbar (page- or table-level) at a realistic window
+      // width -- Item/Price/Availability/Actions stay visible at every size.
+      meta: { className: "hidden xl:table-cell" },
+    },
     { id: "price", header: "Price", cell: ({ row }) => `$${Number(row.original.price).toFixed(2)}` },
     {
       id: "availability",
@@ -549,6 +556,7 @@ const MenuManagementPage = () => {
       id: "options",
       header: "Options",
       cell: ({ row }) => row.original.option_groups.length,
+      meta: { className: "hidden lg:table-cell" },
     },
     {
       id: "actions",
@@ -569,18 +577,16 @@ const MenuManagementPage = () => {
     },
   ];
 
+  useAdminPageHeader(
+    "Menu",
+    "Manage categories, items, pricing, availability, and customization options.",
+    <Button type="button" onClick={openCreate} disabled={!categories?.length}>
+      <Plus className="h-4 w-4" aria-hidden="true" /> Add item
+    </Button>,
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Menu"
-        description="Manage categories, items, pricing, availability, and customization options."
-        actions={
-          <Button type="button" onClick={openCreate} disabled={!categories?.length}>
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add item
-          </Button>
-        }
-      />
-
       {token && (
         <CategoriesPanel
           token={token}

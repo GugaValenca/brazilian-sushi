@@ -11,8 +11,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { fetchAdminOrders, type AdminOrderListItem } from "@/lib/staff";
 import DataTable from "@/admin/components/DataTable";
-import PageHeader from "@/admin/components/PageHeader";
 import StatusBadge from "@/admin/components/StatusBadge";
+import { useAdminPageHeader } from "@/admin/hooks/useAdminPageHeader";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
@@ -63,6 +63,10 @@ const columns: ColumnDef<AdminOrderListItem, unknown>[] = [
     accessorKey: "order_type",
     header: "Type",
     cell: ({ row }) => <span className="capitalize">{row.original.order_type}</span>,
+    // Lower-priority columns hide below xl instead of ever forcing a
+    // horizontal scrollbar (page- or table-level) at a realistic window
+    // width -- Order/Guest/Status/Payment/Total stay visible at every size.
+    meta: { className: "hidden xl:table-cell" },
   },
   {
     accessorKey: "status",
@@ -84,6 +88,7 @@ const columns: ColumnDef<AdminOrderListItem, unknown>[] = [
           {row.original.has_kitchen_notes && <MessageSquareText className="h-4 w-4 text-primary" aria-label="Kitchen notes" />}
         </div>
       ) : null,
+    meta: { className: "hidden lg:table-cell" },
   },
   {
     accessorKey: "total",
@@ -94,6 +99,7 @@ const columns: ColumnDef<AdminOrderListItem, unknown>[] = [
     accessorKey: "created_at",
     header: "Placed",
     cell: ({ row }) => new Date(row.original.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+    meta: { className: "hidden xl:table-cell" },
   },
 ];
 
@@ -132,10 +138,10 @@ const OrdersPage = () => {
     setSearch(searchInput.trim());
   };
 
+  useAdminPageHeader("Orders", "Review live orders, update their status, and handle refunds.");
+
   return (
     <div>
-      <PageHeader title="Orders" description="Review live orders, update their status, and handle refunds." />
-
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <form onSubmit={handleSearchSubmit} className="flex flex-1 min-w-[220px] gap-2">
           <div className="relative flex-1">
