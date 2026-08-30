@@ -9,6 +9,7 @@ class OrderFilterSet(django_filters.FilterSet):
     OrderViewSet -- this only covers the structured filters."""
 
     id = django_filters.NumberFilter(field_name="id")
+    customer = django_filters.NumberFilter(field_name="customer_id")
     status = django_filters.MultipleChoiceFilter(choices=Order.Status.choices)
     payment_status = django_filters.ChoiceFilter(choices=Order.PaymentStatus.choices)
     order_type = django_filters.ChoiceFilter(choices=Order.OrderType.choices)
@@ -17,4 +18,4 @@ class OrderFilterSet(django_filters.FilterSet):
 
     class Meta:
         model = Order
-        fields = ["id", "status", "payment_status", "order_type", "created_after", "created_before"]
+        fields = ["id", "customer", "status", "payment_status", "order_type", "created_after", "created_before"]

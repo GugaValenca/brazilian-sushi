@@ -713,6 +713,24 @@ class OrderAdminListFilteringTests(APITestCase):
         ids = {row["id"] for row in response.data["results"]}
         self.assertEqual(ids, {self.received_order.id})
 
+    def test_filters_by_customer(self):
+        """Backs the customer detail page's order-history tab."""
+        customer = User.objects.create_user(
+            email="repeat-customer@example.com", username="repeatcustomer", password="StrongPass123!"
+        )
+        customer_order = Order.objects.create(
+            customer=customer,
+            order_type=Order.OrderType.PICKUP,
+            status=Order.Status.RECEIVED,
+            subtotal=Decimal("15.00"),
+            total=Decimal("15.00"),
+        )
+
+        response = self.client.get(reverse("order-list"), {"customer": customer.id})
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {customer_order.id})
+
     def test_non_staff_filtering_still_only_sees_their_own_orders(self):
         customer = User.objects.create_user(
             email="orders-filter-customer@braziliansushi.com", username="ordersfiltercustomer", password="StrongPass123!"
