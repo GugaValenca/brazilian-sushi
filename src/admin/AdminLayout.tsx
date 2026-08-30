@@ -1,18 +1,6 @@
 import { type ReactNode } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import {
-  BadgeCheck,
-  ChefHat,
-  Home,
-  LogOut,
-  MapPin,
-  MessageSquare,
-  Percent,
-  Store,
-  Ticket,
-  Truck,
-  Users,
-} from "lucide-react";
+import { Home, LogOut } from "lucide-react";
 
 import {
   Sidebar,
@@ -30,27 +18,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: typeof Truck;
-  end?: boolean;
-  superuserOnly?: boolean;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { to: "/admin", label: "Overview", icon: Store, end: true },
-  { to: "/admin/orders", label: "Orders", icon: Truck },
-  { to: "/admin/menu", label: "Menu", icon: ChefHat },
-  { to: "/admin/delivery-zones", label: "Delivery Zones", icon: MapPin },
-  { to: "/admin/customers", label: "Customers", icon: BadgeCheck },
-  { to: "/admin/staff", label: "Staff", icon: Users, superuserOnly: true },
-  { to: "/admin/coupons", label: "Coupons", icon: Ticket },
-  { to: "/admin/promotions", label: "Promotions", icon: Percent },
-  { to: "/admin/reviews", label: "Reviews", icon: MessageSquare },
-  { to: "/admin/messages", label: "Messages", icon: MessageSquare },
-];
+import CommandPalette from "@/admin/components/CommandPalette";
+import { NAV_ITEMS } from "@/admin/navigation";
 
 function AdminAccessGate({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -167,6 +136,10 @@ const AdminLayout = () => {
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
             <SidebarTrigger />
             <div className="flex-1" />
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              Press <kbd className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono">Ctrl</kbd>{" "}
+              <kbd className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono">K</kbd> to jump anywhere
+            </span>
             <div className="text-sm text-muted-foreground">
               Signed in as <span className="font-medium text-foreground">{user?.email}</span>
             </div>
@@ -176,6 +149,7 @@ const AdminLayout = () => {
           </main>
         </SidebarInset>
       </SidebarProvider>
+      <CommandPalette user={user} />
     </AdminAccessGate>
   );
 };
