@@ -12,6 +12,9 @@ class DeliveryZone(models.Model):
     average_minutes = models.PositiveIntegerField(default=45)
     active = models.BooleanField(default=True)
 
+    class Meta:
+        ordering = ["name"]
+
     def __str__(self):
         return f"{self.name} ({self.postal_code})"
 
@@ -40,6 +43,7 @@ class Order(models.Model):
         PENDING = "pending", "Pending payment"
         PAID = "paid", "Paid"
         FAILED = "failed", "Payment failed"
+        REFUNDED = "refunded", "Refunded"
 
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="orders")
     delivery_address = models.ForeignKey("accounts.Address", null=True, blank=True, on_delete=models.SET_NULL, related_name="orders")

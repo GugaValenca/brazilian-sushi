@@ -5,21 +5,39 @@ from django.core.exceptions import ValidationError
 from django.db.models import Avg, DurationField, ExpressionWrapper, F, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters as drf_filters
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
-from payments.services import create_checkout_session
+from payments.services import create_checkout_session, refund_order
 
-from .models import DeliveryZone, Order
-from .serializers import CreateOrderSerializer, DeliveryZoneSerializer, OrderSerializer
+from .filters import OrderFilterSet
+from .models import DeliveryZone, Order, OrderStatusEvent
+from .serializers import CreateOrderSerializer, DeliveryZoneSerializer, OrderAdminDetailSerializer, OrderSerializer
 from .services import apply_status_transition, clone_order_for_reorder
 
 
-class DeliveryZoneViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = DeliveryZone.objects.filter(active=True)
+class DeliveryZoneViewSet(viewsets.ModelViewSet):
+    """Public reads (checkout needs to list active zones), staff-only writes
+    -- the same split CategoryViewSet/MenuItemViewSet already use. Previously
+    read-only with no way to manage zones outside Django admin."""
+
+    queryset = DeliveryZone.objects.all()
     serializer_class = DeliveryZoneSerializer
+
+    def get_permissions(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return [permissions.AllowAny()]
+        return [permissions.IsAdminUser()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_staff:
+            return queryset
+        return queryset.filter(active=True)
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -36,10 +54,19 @@ class OrderViewSet(viewsets.ModelViewSet):
     # independent guard on top of OrderSerializer's read_only_fields so a
     # future refactor can't accidentally reopen direct field writes.
     http_method_names = ["get", "post", "head", "options"]
+    # Only meaningfully exercised by staff (get_queryset scopes non-staff to
+    # their own orders, or none for guests) -- the admin order list is what
+    # actually needs to filter/search a few hundred orders down to something
+    # useful.
+    filter_backends = [DjangoFilterBackend, drf_filters.SearchFilter]
+    filterset_class = OrderFilterSet
+    search_fields = ["guest_name", "guest_email", "guest_phone", "customer__email", "customer__first_name", "customer__last_name"]
 
     def get_serializer_class(self):
         if self.action == "create":
             return CreateOrderSerializer
+        if self.action == "retrieve":
+            return OrderAdminDetailSerializer
         return OrderSerializer
 
     def get_throttles(self):
@@ -112,12 +139,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(OrderSerializer(new_order, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=["get"], permission_classes=[permissions.IsAdminUser])
-    def staff_queue(self, request):
-        queue = self.get_queryset().filter(status__in=[Order.Status.RECEIVED, Order.Status.CONFIRMED, Order.Status.PREPARING, Order.Status.READY, Order.Status.OUT_FOR_DELIVERY])
-        serializer = OrderSerializer(queue, many=True, context={"request": request})
-        return Response(serializer.data)
-
-    @action(detail=False, methods=["get"], permission_classes=[permissions.IsAdminUser])
     def summary(self, request):
         queryset = self.get_queryset()
         data = {
@@ -174,4 +195,21 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
 
         order = apply_status_transition(order, next_status, note)
+        return Response(OrderSerializer(order, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAdminUser])
+    def refund(self, request, pk=None):
+        order = self.get_object()
+        if order.payment_status != Order.PaymentStatus.PAID:
+            return Response(
+                {"detail": "Only a paid order can be refunded."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not refund_order(order):
+            return Response(
+                {"detail": "Could not process the refund through Stripe. Check the payment configuration and try again."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        OrderStatusEvent.objects.create(order=order, status=order.status, note="Payment refunded")
         return Response(OrderSerializer(order, context={"request": request}).data)

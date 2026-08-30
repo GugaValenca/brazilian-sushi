@@ -203,6 +203,16 @@ def apply_status_transition(order, next_status, note=""):
     if next_status not in Order.Status.values:
         raise serializers.ValidationError({"status": "Invalid status."})
 
+    # Delivered and cancelled are terminal -- resurrecting either one back
+    # into an active state (or re-cancelling an already-delivered order)
+    # would corrupt loyalty accounting (_apply_loyalty below only expects to
+    # ever fire once per order) and the delivery-time metrics OverviewPage
+    # computes from confirmed_at/completed_at.
+    if order.status in (Order.Status.DELIVERED, Order.Status.CANCELLED):
+        raise serializers.ValidationError(
+            {"status": f"This order is already {order.get_status_display().lower()} and cannot be changed further."}
+        )
+
     order.status = next_status
     now = timezone.now()
     if next_status == Order.Status.CONFIRMED:

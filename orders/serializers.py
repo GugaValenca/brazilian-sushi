@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from accounts.models import Address
+from accounts.models import Address, User
+from marketing.models import Coupon
 
 from .models import DeliveryZone, Order, OrderItem, OrderItemSelection, OrderStatusEvent
 from .services import create_order
@@ -161,3 +162,33 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_has_allergy_alert(self, obj):
         return bool((obj.allergy_notes or "").strip())
+
+
+class OrderCustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "email", "first_name", "last_name", "phone_number", "is_verified_customer")
+
+
+class OrderDeliveryAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ("id", "label", "recipient_name", "phone_number", "line_1", "line_2", "city", "state", "postal_code", "delivery_notes")
+
+
+class OrderCouponSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Coupon
+        fields = ("id", "code", "discount_type", "value")
+
+
+class OrderAdminDetailSerializer(OrderSerializer):
+    """The single-order view (OrderViewSet.retrieve) needs the actual
+    customer/address/coupon/zone content, not just the bare foreign key ids
+    OrderSerializer otherwise renders them as -- a staff member reviewing one
+    order needs the real delivery address text and coupon code on screen."""
+
+    customer = OrderCustomerSerializer(read_only=True)
+    delivery_address = OrderDeliveryAddressSerializer(read_only=True)
+    coupon = OrderCouponSerializer(read_only=True)
+    delivery_zone = DeliveryZoneSerializer(read_only=True)

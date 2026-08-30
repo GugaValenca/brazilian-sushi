@@ -137,3 +137,32 @@ def handle_webhook_event(payload, sig_header):
     if order.status == Order.Status.RECEIVED:
         apply_status_transition(order, Order.Status.CONFIRMED, note="Payment confirmed via Stripe")
     return order
+
+
+def refund_order(order):
+    """Refunds an order's Stripe payment in full via the Checkout Session's
+    underlying PaymentIntent, and marks the order refunded. Returns True on
+    success, False if Stripe isn't configured, the order was never actually
+    paid through it, or the refund request itself failed. Callers are
+    expected to already gate this on payment_status == PAID (see
+    OrderViewSet.refund) -- this only handles the Stripe side."""
+    if not stripe_configured() or not order.stripe_checkout_session_id:
+        return False
+
+    from orders.models import Order
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    try:
+        session = stripe.checkout.Session.retrieve(order.stripe_checkout_session_id)
+        payment_intent_id = session.payment_intent
+        if not payment_intent_id:
+            return False
+        stripe.Refund.create(payment_intent=payment_intent_id)
+    except stripe.error.StripeError:
+        logger.exception("Failed to refund order %s via Stripe", order.pk)
+        return False
+
+    order.payment_status = Order.PaymentStatus.REFUNDED
+    order.save(update_fields=["payment_status"])
+    return True

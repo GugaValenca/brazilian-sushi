@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -10,8 +11,8 @@ from rest_framework.test import APITestCase
 from accounts.models import Address
 from marketing.models import Coupon
 from menu.models import Category, MenuItem, MenuOption, MenuOptionGroup
-from orders.models import Order, OrderStatusEvent
-from orders.services import clone_order_for_reorder
+from orders.models import DeliveryZone, Order, OrderStatusEvent
+from orders.services import apply_status_transition, clone_order_for_reorder
 
 User = get_user_model()
 
@@ -649,3 +650,228 @@ class ReorderRepricingTests(APITestCase):
 
         # Nothing left behind despite the failed reorder.
         self.assertEqual(Order.objects.exclude(pk=self.original_order.pk).count(), 0)
+
+
+class OrderAdminListFilteringTests(APITestCase):
+    """The admin order list needs to actually filter/search/paginate a real
+    volume of orders -- these cover the filter backend wiring, not just that
+    the endpoint returns 200."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            email="orders-staff@braziliansushi.com", username="ordersstaff", password="StrongPass123!", is_staff=True
+        )
+        category = Category.objects.create(name="Rolls", slug="admin-list-rolls")
+        self.menu_item = MenuItem.objects.create(
+            category=category,
+            name="Rainbow Roll",
+            slug="rainbow-roll-admin-list-test",
+            short_description="Classic roll",
+            price=Decimal("15.00"),
+        )
+        self.received_order = Order.objects.create(
+            order_type=Order.OrderType.PICKUP,
+            status=Order.Status.RECEIVED,
+            guest_name="Ana Souza",
+            guest_email="ana.souza@example.com",
+            guest_phone="5551234567",
+            subtotal=Decimal("15.00"),
+            total=Decimal("15.00"),
+        )
+        self.delivered_order = Order.objects.create(
+            order_type=Order.OrderType.DELIVERY,
+            status=Order.Status.DELIVERED,
+            guest_name="Bruno Lima",
+            guest_email="bruno.lima@example.com",
+            guest_phone="5559876543",
+            subtotal=Decimal("15.00"),
+            total=Decimal("15.00"),
+        )
+        self.client.force_authenticate(self.staff)
+
+    def test_filters_by_status(self):
+        response = self.client.get(reverse("order-list"), {"status": Order.Status.DELIVERED})
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {self.delivered_order.id})
+
+    def test_filters_by_order_type(self):
+        response = self.client.get(reverse("order-list"), {"order_type": Order.OrderType.DELIVERY})
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {self.delivered_order.id})
+
+    def test_searches_by_guest_name(self):
+        response = self.client.get(reverse("order-list"), {"search": "Ana Souza"})
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {self.received_order.id})
+
+    def test_filters_by_exact_id(self):
+        response = self.client.get(reverse("order-list"), {"id": self.received_order.id})
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {self.received_order.id})
+
+    def test_non_staff_filtering_still_only_sees_their_own_orders(self):
+        customer = User.objects.create_user(
+            email="orders-filter-customer@braziliansushi.com", username="ordersfiltercustomer", password="StrongPass123!"
+        )
+        self.client.force_authenticate(customer)
+
+        response = self.client.get(reverse("order-list"), {"status": Order.Status.DELIVERED})
+
+        self.assertEqual(response.data["count"], 0)
+
+
+class OrderTerminalStatusTests(APITestCase):
+    """Regression tests: delivered/cancelled used to accept further status
+    transitions with no guard at all -- a stray click could resurrect a
+    finished order, double-counting loyalty or corrupting delivery-time
+    metrics."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            email="terminal-staff@braziliansushi.com", username="terminalstaff", password="StrongPass123!", is_staff=True
+        )
+        self.order = Order.objects.create(
+            order_type=Order.OrderType.PICKUP,
+            status=Order.Status.DELIVERED,
+            guest_name="Guest",
+            guest_email="terminal-guest@example.com",
+            guest_phone="5551234567",
+            subtotal=Decimal("10.00"),
+            total=Decimal("10.00"),
+        )
+
+    def test_a_delivered_order_cannot_be_moved_again(self):
+        with self.assertRaises(Exception):
+            apply_status_transition(self.order, Order.Status.PREPARING)
+
+    def test_a_cancelled_order_cannot_be_moved_again(self):
+        self.order.status = Order.Status.CANCELLED
+        self.order.save(update_fields=["status"])
+
+        with self.assertRaises(Exception):
+            apply_status_transition(self.order, Order.Status.CONFIRMED)
+
+    def test_the_api_surfaces_a_clean_400_not_a_500(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            reverse("order-update-status", args=[self.order.id]), {"status": Order.Status.PREPARING}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class OrderRefundActionTests(APITestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            email="refund-action-staff@braziliansushi.com", username="refundactionstaff", password="StrongPass123!", is_staff=True
+        )
+        self.customer = User.objects.create_user(
+            email="refund-action-customer@braziliansushi.com", username="refundactioncustomer", password="StrongPass123!"
+        )
+        self.paid_order = Order.objects.create(
+            order_type=Order.OrderType.PICKUP,
+            status=Order.Status.CONFIRMED,
+            payment_status=Order.PaymentStatus.PAID,
+            guest_name="Guest",
+            guest_email="refund-guest@example.com",
+            guest_phone="5551234567",
+            subtotal=Decimal("20.00"),
+            total=Decimal("20.00"),
+            stripe_checkout_session_id="cs_test_action",
+        )
+
+    def test_only_staff_can_refund(self):
+        self.client.force_authenticate(self.customer)
+
+        response = self.client.post(reverse("order-refund", args=[self.paid_order.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_an_unpaid_order_cannot_be_refunded(self):
+        unpaid_order = Order.objects.create(
+            order_type=Order.OrderType.PICKUP,
+            status=Order.Status.RECEIVED,
+            payment_status=Order.PaymentStatus.NOT_REQUIRED,
+            guest_name="Guest",
+            guest_email="unpaid-guest@example.com",
+            guest_phone="5551234567",
+            subtotal=Decimal("10.00"),
+            total=Decimal("10.00"),
+        )
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(reverse("order-refund", args=[unpaid_order.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("orders.views.refund_order")
+    def test_a_successful_refund_records_a_status_event(self, mock_refund_order):
+        mock_refund_order.return_value = True
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(reverse("order-refund", args=[self.paid_order.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.paid_order.status_events.filter(note="Payment refunded").exists())
+
+    @patch("orders.views.refund_order")
+    def test_a_failed_refund_returns_a_clean_error_not_a_500(self, mock_refund_order):
+        mock_refund_order.return_value = False
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(reverse("order-refund", args=[self.paid_order.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+
+
+class DeliveryZoneAdminManagementTests(APITestCase):
+    """Regression coverage for upgrading DeliveryZoneViewSet from read-only
+    to full staff-managed CRUD -- previously zones could only be created or
+    edited via Django admin."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            email="zones-staff@braziliansushi.com", username="zonesstaff", password="StrongPass123!", is_staff=True
+        )
+        self.active_zone = DeliveryZone.objects.create(name="Downtown", postal_code="33602", fee=Decimal("4.99"), active=True)
+        self.inactive_zone = DeliveryZone.objects.create(name="Retired Zone", postal_code="33699", fee=Decimal("6.99"), active=False)
+
+    def test_public_list_excludes_inactive_zones(self):
+        response = self.client.get(reverse("delivery-zone-list"))
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {self.active_zone.id})
+
+    def test_staff_list_includes_inactive_zones(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(reverse("delivery-zone-list"))
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {self.active_zone.id, self.inactive_zone.id})
+
+    def test_anonymous_cannot_create_a_zone(self):
+        response = self.client.post(
+            reverse("delivery-zone-list"), {"name": "New Zone", "postal_code": "33701", "fee": "5.00"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_staff_can_create_and_update_a_zone(self):
+        self.client.force_authenticate(self.staff)
+
+        create_response = self.client.post(
+            reverse("delivery-zone-list"), {"name": "New Zone", "postal_code": "33701", "fee": "5.00"}, format="json"
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+
+        update_response = self.client.patch(
+            reverse("delivery-zone-detail", args=[create_response.data["id"]]), {"fee": "7.50"}, format="json"
+        )
+        self.assertEqual(update_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(update_response.data["fee"], "7.50")
