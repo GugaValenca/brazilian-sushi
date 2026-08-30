@@ -171,29 +171,26 @@ const CustomerDetailPage = () => {
             </div>
           </section>
 
-          {canManageStaffAccess && (
+          {/* Only shown for a customer who is already staff (revoke + reset
+              their password) -- granting staff access in the first place is
+              deliberately not offered here. Every customer is technically
+              eligible in the data model, but surfacing a one-click "make
+              this person staff" button on every single customer's page
+              made it look like a routine, low-stakes action. Granting stays
+              exclusively on the Staff page's dedicated search-and-promote
+              flow, a deliberate destination instead of an incidental one. */}
+          {canManageStaffAccess && customer.is_staff && (
             <section className="rounded-xl border border-border bg-card p-5">
               <h2 className="mb-3 font-display text-lg font-bold text-foreground">Staff access</h2>
               <div className="space-y-2">
-                {customer.is_staff ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => setRevokeStaffOpen(true)}
-                  >
-                    Revoke staff access
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    className="w-full"
-                    disabled={staffMutation.isPending}
-                    onClick={() => staffMutation.mutate(true)}
-                  >
-                    Grant staff access
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => setRevokeStaffOpen(true)}
+                >
+                  Revoke staff access
+                </Button>
                 <Button type="button" variant="outline" className="w-full" onClick={() => setPasswordOpen(true)}>
                   <KeyRound className="h-4 w-4" aria-hidden="true" /> Set password
                 </Button>

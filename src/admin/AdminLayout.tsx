@@ -132,7 +132,14 @@ const AdminLayout = () => {
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset>
+        {/* min-w-0 on both flex children below: a flex item's default
+            min-width is auto (its content's intrinsic width), not 0 -- so
+            without this, a wide table anywhere on a page keeps this whole
+            column from shrinking past that width, and the *page* scrolls
+            horizontally instead of just the table's own overflow-x-auto
+            wrapper. Narrower windows / portrait monitors hit this on
+            almost every data-table page otherwise. */}
+        <SidebarInset className="min-w-0">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
             <SidebarTrigger />
             <div className="flex-1" />
@@ -144,7 +151,7 @@ const AdminLayout = () => {
               Signed in as <span className="font-medium text-foreground">{user?.email}</span>
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6">
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-background p-4 md:p-6">
             <Outlet />
           </main>
         </SidebarInset>
