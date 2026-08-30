@@ -55,10 +55,12 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 
 ### 🔐 Security
 
-- Every write to an order's price, status, or payment state goes through a permission-checked, audited action — the public order endpoint cannot be used to rewrite them directly
-- Rate limiting on authentication endpoints (login, register, resend confirmation) via DRF throttling
-- The app refuses to boot with `DEBUG=False` unless a real `SECRET_KEY` and `ALLOWED_HOSTS` are configured, instead of running exposed
+- Every write to an order's price, status, coupon, or payment state goes through a permission-checked, audited action — the public order endpoint cannot be used to rewrite them directly, and a saved address can only ever be attached to an order by the customer who owns it
+- Rate limiting on authentication endpoints (login, register, resend confirmation), order creation, and the Django admin login (5 wrong attempts/min, independent of the API's own throttling) via DRF throttling and a small custom middleware
+- Registration enforces Django's password validators (rejects common, all-numeric, or account-similar passwords) instead of only a minimum length
+- The app refuses to boot with `DEBUG=False` unless a real, sufficiently long `SECRET_KEY` and `ALLOWED_HOSTS` are configured, instead of running exposed
 - Content-Security-Policy, HSTS, X-Frame-Options, Referrer-Policy, and Permissions-Policy headers on both the API (Django middleware) and the static frontend (`vercel.json`)
+- Stripe webhook payloads are signature-verified and processed idempotently, and a delayed or retried webhook can never regress an order's status backward
 - Automatic, silent access-token refresh on the frontend so a session never dies mid-checkout
 - Optional Sentry error monitoring, off by default, on for both API and frontend when a DSN is configured
 
@@ -246,6 +248,14 @@ Every variable lives in `.env.example` with a safe default. The notable groups:
 - Kept payments strictly opt-in and additive — Stripe Checkout activates only when configured, with zero behavior change otherwise, the same pattern already used for SMS/email
 - Designed a portfolio-ready product that stays explainable in interviews while still covering meaningful business workflows
 - Strengthened production readiness with CI, OpenAPI docs, optional error monitoring, and PostgreSQL-backed configuration
+
+## ⚠️ Known Limitations
+
+- Stripe integration has been verified for webhook signature handling, idempotency, and graceful failure when unconfigured, but not yet against a real Stripe test-mode checkout end to end (no test account was available during development). It's opt-in and inert until `STRIPE_SECRET_KEY` is set, so this doesn't affect the app otherwise.
+- No self-service password reset for customers or staff — resetting one today means doing it directly in the database or Django admin.
+- No refund flow. A cancelled or disputed order has to be handled manually in the Stripe dashboard and reflected on the order by hand.
+- Review photo and menu item image uploads use local file storage, which doesn't reliably persist on Vercel's serverless runtime. Fine for anything baked into the deployment (seeded menu data, build-time assets); a real upload at runtime needs an external object store (S3, Cloudinary, R2) wired in before it's dependable.
+- Sentry is supported but not currently configured in production, so unhandled errors there aren't surfaced automatically — checking Vercel's function logs is still a manual step.
 
 ## 🤝 Contributing
 
