@@ -22,9 +22,9 @@ const Footer = () => (
   <footer className="border-t border-border bg-gradient-card">
     <div className="container py-12 md:py-16">
       <div className="max-w-6xl mx-auto grid gap-10 md:grid-cols-[0.7fr_1.15fr_0.9fr] md:gap-12">
-        <div className="space-y-4">
+        <div className="space-y-4 text-center">
           <h4 className="text-sm uppercase tracking-[0.22em] text-primary/85 font-medium">Navigate</h4>
-          <div className="grid gap-3">
+          <div className="grid gap-3 justify-center">
             {footerLinks.map((link) => (
               <Link
                 key={link.to}
@@ -48,9 +48,9 @@ const Footer = () => (
           </div>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5 text-center">
           <h4 className="text-sm uppercase tracking-[0.22em] text-primary/85 font-medium">Contact</h4>
-          <div className="space-y-3 text-sm text-muted-foreground">
+          <div className="flex flex-col items-center space-y-3 text-sm text-muted-foreground">
             <a href={businessInfo.phoneHref} className="inline-flex items-center gap-2 transition-colors hover:text-foreground">
               <Phone className="w-4 h-4 text-primary" />
               {businessInfo.phoneDisplay}
@@ -60,7 +60,7 @@ const Footer = () => (
               {businessInfo.email}
             </a>
           </div>
-          <div className="flex items-center gap-4 pt-1">
+          <div className="flex items-center justify-center gap-4 pt-1">
             {socials.map((social) => (
               <a
                 key={social.label}

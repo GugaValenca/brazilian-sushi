@@ -276,7 +276,6 @@ const Index = () => {
               Contact Us <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
-          <p className="text-muted-foreground text-sm mt-6">{businessInfo.hoursSummary}</p>
         </div>
       </section>
     </div>
