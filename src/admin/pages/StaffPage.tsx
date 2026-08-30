@@ -40,7 +40,16 @@ const StaffPage = () => {
     enabled: Boolean(token) && grantOpen && grantSearch.length > 0,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: staffQueryKey });
+  // Granting/revoking here changes the is_staff/is_superuser columns the
+  // Customers list and a customer's own detail page also show -- without
+  // this they'd keep showing stale data until a manual refresh, the same
+  // gap CustomerDetailPage's own grant/revoke actions had.
+  const invalidate = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: staffQueryKey }),
+      queryClient.invalidateQueries({ queryKey: ["admin-customers"] }),
+      queryClient.invalidateQueries({ queryKey: ["admin-customer"] }),
+    ]);
 
   const grantMutation = useMutation({
     mutationFn: (customerId: number) => updateCustomer(token!, customerId, { is_staff: true }),

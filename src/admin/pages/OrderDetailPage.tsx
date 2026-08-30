@@ -78,6 +78,10 @@ const OrderDetailPage = () => {
     onSuccess: async () => {
       setRefundOpen(false);
       await queryClient.invalidateQueries({ queryKey });
+      // A refund changes payment_status, shown in the Payment column on
+      // the orders list -- missing here the same way it was on statusMutation/
+      // cancelMutation above, just never noticed since a refund is rarer.
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
       toast.success("Payment refunded");
     },
     onError: () => toast.error("Could not process the refund. Check the Stripe configuration."),

@@ -62,7 +62,16 @@ const CustomerDetailPage = () => {
     enabled: Boolean(token && customerId),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey });
+  // Verifying/unverifying and granting/revoking staff access all change
+  // fields shown on the Customers and Staff list pages too (the verified
+  // badge, the staff/superuser columns) -- invalidating only this page's
+  // own query left those lists showing stale data until a manual refresh.
+  const invalidate = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey }),
+      queryClient.invalidateQueries({ queryKey: ["admin-customers"] }),
+      queryClient.invalidateQueries({ queryKey: ["admin-staff"] }),
+    ]);
 
   const verifyMutation = useMutation({
     mutationFn: () => verifyCustomer(token!, Number(customerId)),
