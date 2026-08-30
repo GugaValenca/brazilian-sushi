@@ -539,6 +539,36 @@ class OrderItemLimitTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_absurd_option_ids_list_is_rejected_cleanly(self):
+        """Regression: option_ids had no length cap, so a huge array here
+        became a huge SQL IN(...) clause in _resolve_options."""
+        response = self.client.post(
+            reverse("order-list"),
+            self._payload(
+                [{"menu_item_id": self.menu_item.id, "quantity": 1, "option_ids": list(range(1, 10001))}]
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_oversized_special_request_is_rejected_cleanly(self):
+        """Regression: special_request had no max_length matching the model
+        field (255 chars), so an oversized value only failed at the
+        database in Postgres -- an unhandled 500, not a clean 400 (SQLite,
+        used by the test DB, doesn't enforce column length at all)."""
+        response = self.client.post(
+            reverse("order-list"),
+            self._payload(
+                [{"menu_item_id": self.menu_item.id, "quantity": 1, "special_request": "x" * 10000}]
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.count(), 0)
+
 
 class OptionGroupSelectionTests(APITestCase):
     """A required (or min/max-bounded) option group used to be entirely

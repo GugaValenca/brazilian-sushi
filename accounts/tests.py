@@ -211,6 +211,51 @@ class LoginThrottleTests(APITestCase):
         self.assertEqual(valid_login_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
+class PasswordLengthLimitTests(APITestCase):
+    """Regression tests: password fields had no upper bound, so a
+    multi-kilobyte "password" would reach Django's PBKDF2 hasher (which
+    processes its full input) on every attempt -- a cheap way to burn CPU
+    on the most exposed unauthenticated endpoint in the app."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(
+            email="password-length@braziliansushi.com", username="passwordlength", password="StrongPass123!"
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_oversized_login_password_is_rejected_cleanly(self):
+        response = self.client.post(
+            reverse("token_obtain_pair"),
+            {"email": self.user.email, "password": "x" * 10000},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_oversized_registration_password_is_rejected_cleanly(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "email": "new-signup@braziliansushi.com",
+                "username": "newsignup",
+                "first_name": "New",
+                "last_name": "Signup",
+                "phone_number": "5551234567",
+                "notification_preference": "email",
+                "sms_opt_in": False,
+                "email_opt_in": True,
+                "password": "x" * 10000,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(email="new-signup@braziliansushi.com").exists())
+
+
 class LogoutAndTokenRotationTests(APITestCase):
     """Logging out used to only ever discard the refresh token client-side —
     the token itself stayed valid on the server for its full 7-day lifetime.

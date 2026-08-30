@@ -209,6 +209,17 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 12,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # DRF's BrowsableAPIRenderer is left on by default, which serves a full
+    # interactive HTML form UI for every endpoint to any plain browser visit
+    # (Accept: text/html) -- convenient for local development, but in
+    # production it's unnecessary surface (drf-spectacular's Swagger UI
+    # already covers interactive docs) that shows more of each endpoint's
+    # shape than a JSON-only API needs to. JSON-only outside DEBUG.
+    "DEFAULT_RENDERER_CLASSES": (
+        ("rest_framework.renderers.JSONRenderer", "rest_framework.renderers.BrowsableAPIRenderer")
+        if DEBUG
+        else ("rest_framework.renderers.JSONRenderer",)
+    ),
     # Every unauthenticated/authenticated request is rate-limited by default;
     # auth endpoints additionally use the tighter "auth" scope below via
     # ScopedRateThrottle so login/register/resend-confirmation can't be

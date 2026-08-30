@@ -5,6 +5,6 @@ Disallow: /track-order
 Disallow: /login
 Disallow: /register
 Disallow: /account
-Disallow: /staff-dashboard
+Disallow: /admin
 
 Sitemap: https://brazilian-sushi.vercel.app/sitemap.xml

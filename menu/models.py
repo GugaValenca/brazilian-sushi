@@ -1,4 +1,17 @@
+from django.core.exceptions import ValidationError
 from django.db import models
+
+MAX_MENU_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+
+
+def validate_menu_image_size(file):
+    """Same cap marketing.models.validate_review_photo_size applies to
+    review photos -- this field had no size limit at all before, even
+    though it's a staff-only upload (AdminMenuItemSerializer), an
+    unbounded file is still worth guarding against by mistake or a
+    compromised staff account."""
+    if file.size > MAX_MENU_IMAGE_SIZE_BYTES:
+        raise ValidationError("Image must be 5MB or smaller.")
 
 
 class Category(models.Model):
@@ -27,7 +40,7 @@ class MenuItem(models.Model):
     short_description = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=8, decimal_places=2)
-    image = models.ImageField(upload_to="menu/", blank=True, null=True)
+    image = models.ImageField(upload_to="menu/", blank=True, null=True, validators=[validate_menu_image_size])
     spicy = models.BooleanField(default=False)
     vegetarian = models.BooleanField(default=False)
     featured = models.BooleanField(default=False)

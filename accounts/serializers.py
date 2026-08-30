@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import MaxLengthValidator
 from django.utils import timezone
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
@@ -15,7 +16,11 @@ User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
+    # max_length guards against a password-hashing DoS: PBKDF2 (Django's
+    # default hasher) processes its full input, so an unbounded field lets
+    # a request submit a multi-megabyte "password" and force an expensive
+    # hash of it. 128 is far beyond any real password anyone would type.
+    password = serializers.CharField(write_only=True, min_length=8, max_length=128)
     confirmation_channels = serializers.ListField(child=serializers.CharField(), read_only=True)
     confirmation_required = serializers.BooleanField(read_only=True)
 
@@ -145,7 +150,7 @@ class SetCustomerPasswordSerializer(serializers.Serializer):
     setting a new staff member's password directly is the smallest real fix
     that doesn't depend on that."""
 
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True, min_length=8, max_length=128)
 
     def validate_password(self, value):
         user = self.context.get("user")
@@ -180,7 +185,10 @@ class ConfirmAccountSerializer(serializers.Serializer):
 
 
 class LogoutSerializer(serializers.Serializer):
-    refresh = serializers.CharField()
+    # A real refresh JWT is a few hundred characters; capped well above that
+    # so an oversized garbage string doesn't get as far as RefreshToken()
+    # attempting to decode it.
+    refresh = serializers.CharField(max_length=2048)
 
 
 class BrazilianSushiTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -188,6 +196,18 @@ class BrazilianSushiTokenObtainPairSerializer(TokenObtainPairSerializer):
         "inactive_account": "Your account is still pending confirmation. Please confirm your signup link before signing in.",
         "no_active_account": "We couldn't sign you in with those credentials.",
     }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # SimpleJWT builds the password field dynamically (see
+        # TokenObtainSerializer.__init__) with no length limit at all —
+        # login is the most exposed, most frequently-hit unauthenticated
+        # endpoint in the app, so an unbounded field here is the most
+        # exploitable spot for the PBKDF2-hashing-a-huge-string DoS this
+        # guards against (check_password hashes whatever it's given).
+        # Appended rather than redeclared to avoid quietly dropping
+        # whatever else SimpleJWT configured on its own PasswordField.
+        self.fields["password"].validators.append(MaxLengthValidator(128))
 
     @classmethod
     def get_token(cls, user):

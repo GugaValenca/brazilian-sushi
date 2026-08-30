@@ -22,8 +22,18 @@ class OrderItemWriteSerializer(serializers.Serializer):
     # SQLite (used by the test DB) doesn't enforce that precision at all, so
     # this class of bug wouldn't otherwise show up in tests.
     quantity = serializers.IntegerField(min_value=1, max_value=50)
-    option_ids = serializers.ListField(child=serializers.IntegerField(), required=False)
-    special_request = serializers.CharField(required=False, allow_blank=True)
+    # Unbounded before this: a huge option_ids array here becomes a huge SQL
+    # IN(...) clause in _resolve_options, and no real menu item has more
+    # than a handful of selectable options across all its groups combined.
+    option_ids = serializers.ListField(child=serializers.IntegerField(), required=False, max_length=20)
+    # Must match OrderItem.special_request's max_length (models.py) — the
+    # serializer previously had no limit of its own, so an oversized value
+    # passed validation here and only failed at the database with a raw,
+    # unhandled error in Postgres (SQLite, used by the test DB, doesn't
+    # enforce column length at all, so this class of bug doesn't surface in
+    # tests without deliberately checking for it — the same gap the
+    # quantity/line_total comment above already called out for that field).
+    special_request = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
 
 class CreateOrderSerializer(serializers.ModelSerializer):
