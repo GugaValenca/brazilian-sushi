@@ -236,7 +236,13 @@ REST_FRAMEWORK = {
         # genuinely browsing multiple pages back to back.
         "anon": "180/min",
         "user": "300/min",
-        "auth": "5/min",
+        # Configurable so the Playwright e2e suite (which drives real
+        # login/register calls from several spec files against one shared
+        # dev-server IP within a single short run) can raise it for its own
+        # server process without weakening the default -- every other
+        # invocation (plain `manage.py runserver`, production) keeps the
+        # strict 5/min unless this is explicitly set.
+        "auth": env_str("DJANGO_AUTH_THROTTLE_RATE", "5/min"),
         # Order creation is open to guests (no login required), so it needs
         # its own cap independent of the generic anon rate above — otherwise
         # the kitchen queue can be flooded with junk orders far faster than

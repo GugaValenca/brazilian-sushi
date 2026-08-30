@@ -22,6 +22,12 @@ export default defineConfig({
       url: "http://127.0.0.1:8010/api/health/",
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
+      // Several spec files each make real login/register calls against this
+      // one dev server within a single short run -- the default 5/min "auth"
+      // throttle (a deliberate brute-force guard, unrelated to test volume)
+      // would otherwise trip partway through the suite. Loosened only for
+      // this e2e server process; every other invocation keeps the default.
+      env: { ...process.env, DJANGO_AUTH_THROTTLE_RATE: "100/min" },
     },
     {
       command: "npm run dev:frontend",
