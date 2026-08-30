@@ -96,10 +96,20 @@ class UserSerializer(serializers.ModelSerializer):
             "verified_reason",
             "loyalty_completed_orders",
             "is_staff",
+            "is_superuser",
             "account_confirmed_at",
             "can_submit_review",
         )
-        read_only_fields = ("email", "is_verified_customer", "verified_reason", "loyalty_completed_orders", "is_staff", "account_confirmed_at", "can_submit_review")
+        read_only_fields = (
+            "email",
+            "is_verified_customer",
+            "verified_reason",
+            "loyalty_completed_orders",
+            "is_staff",
+            "is_superuser",
+            "account_confirmed_at",
+            "can_submit_review",
+        )
 
     def get_can_submit_review(self, obj):
         return bool(get_eligible_review_order(obj))

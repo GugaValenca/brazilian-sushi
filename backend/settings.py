@@ -93,8 +93,12 @@ def build_database_config():
     }
 
 
+# No django.contrib.admin: the admin/back-office experience is the React
+# app under /admin (see src/admin/), not Django's built-in admin site.
+# No rest_framework.authtoken: JWT (SIMPLE_JWT below) is the only auth
+# backend actually configured (see REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES) —
+# the token app was never wired to anything.
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -102,7 +106,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
-    "rest_framework.authtoken",
+    "django_filters",
     "drf_spectacular",
     "accounts",
     "menu",
@@ -114,8 +118,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "backend.middleware.SecurityHeadersMiddleware",
-    "backend.middleware.AdminNoCacheMiddleware",
-    "backend.middleware.AdminLoginThrottleMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -130,7 +132,11 @@ ROOT_URLCONF = "backend.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        # No project-level template dir: the only templates this project
+        # ever had were Django admin overrides, and the admin is gone.
+        # APP_DIRS stays on -- drf-spectacular's Swagger UI view renders a
+        # template from its own app's templates/ directory.
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -163,7 +169,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+# No STATICFILES_DIRS: the only project-level static assets were the Django
+# admin theme, which no longer exists. DRF and drf-spectacular still serve
+# their own bundled static files via the default AppDirectoriesFinder.
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 

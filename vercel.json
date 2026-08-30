@@ -20,10 +20,6 @@
       "dest": "/api/asgi.py"
     },
     {
-      "src": "/admin/(.*)",
-      "dest": "/api/asgi.py"
-    },
-    {
       "src": "/static/(.*)",
       "dest": "/api/asgi.py"
     },

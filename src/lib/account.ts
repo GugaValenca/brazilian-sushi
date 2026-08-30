@@ -18,6 +18,8 @@ export interface UserProfile {
   is_verified_customer: boolean;
   verified_reason: string;
   loyalty_completed_orders: number;
+  is_staff: boolean;
+  is_superuser: boolean;
   account_confirmed_at: string | null;
   can_submit_review: boolean;
 }
@@ -116,6 +118,7 @@ export interface OrderListItem {
   completed_at: string | null;
   items: Array<{
     id: number;
+    menu_item: number;
     menu_item_name: string;
     quantity: number;
     line_total: string;
