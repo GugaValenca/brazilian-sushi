@@ -5,6 +5,8 @@ from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from .models import Address
+
 User = get_user_model()
 
 
@@ -400,3 +402,172 @@ class RegistrationPasswordStrengthTests(APITestCase):
     def test_a_genuinely_strong_password_is_still_accepted(self):
         response = self.client.post(reverse("register"), self._payload("Tr0ub4dor&Zebra!91"), format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class RegistrationDuplicateDetectionTests(APITestCase):
+    """Regression tests: a duplicate email was already rejected (a DB-level
+    unique constraint), but with a generic "user with this email already
+    exists." message, and a duplicate phone number wasn't checked at all
+    (phone_number has no uniqueness constraint of its own)."""
+
+    def setUp(self):
+        cache.clear()
+        self.existing = User.objects.create_user(
+            email="already-registered@braziliansushi.com",
+            username="alreadyregistered",
+            password="StrongPass123!",
+            phone_number="8135559999",
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def _payload(self, **overrides):
+        payload = {
+            "email": "new-signup@braziliansushi.com",
+            "username": "newsignup",
+            "first_name": "New",
+            "last_name": "Signup",
+            "phone_number": "8135550000",
+            "notification_preference": "email",
+            "sms_opt_in": False,
+            "email_opt_in": True,
+            "password": "Tr0ub4dor&Zebra!91",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_duplicate_email_gets_a_clear_already_registered_message(self):
+        response = self.client.post(
+            reverse("register"), self._payload(email=self.existing.email), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already exists", str(response.data["email"][0]))
+
+    def test_duplicate_phone_number_is_rejected(self):
+        response = self.client.post(
+            reverse("register"), self._payload(phone_number=self.existing.phone_number), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already exists", str(response.data["phone_number"][0]))
+
+    def test_a_blank_phone_number_never_collides_with_another_blank_one(self):
+        User.objects.create_user(email="blank-phone@braziliansushi.com", username="blankphone", password="StrongPass123!")
+
+        response = self.client.post(reverse("register"), self._payload(phone_number=""), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class RegistrationAddressTests(APITestCase):
+    """Regression tests: registration never asked for a delivery address at
+    all -- a customer had no way to have one on file before their first
+    delivery order, when checkout would ask for it anyway."""
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def _payload(self, **overrides):
+        payload = {
+            "email": "signup-with-address@braziliansushi.com",
+            "username": "signupwithaddress",
+            "first_name": "Signup",
+            "last_name": "WithAddress",
+            "phone_number": "8135550001",
+            "notification_preference": "email",
+            "sms_opt_in": False,
+            "email_opt_in": True,
+            "password": "Tr0ub4dor&Zebra!91",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_registration_without_an_address_still_works(self):
+        response = self.client.post(reverse("register"), self._payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(email=self._payload()["email"])
+        self.assertFalse(user.addresses.exists())
+
+    def test_registration_with_a_complete_address_saves_it_as_the_default(self):
+        response = self.client.post(
+            reverse("register"),
+            self._payload(
+                address_line_1="123 Main St",
+                address_city="Tampa",
+                address_state="FL",
+                address_postal_code="33602",
+                address_delivery_notes="Gate code 4321",
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(email=self._payload()["email"])
+        address = user.addresses.get()
+        self.assertTrue(address.is_default)
+        self.assertEqual(address.line_1, "123 Main St")
+        self.assertEqual(address.delivery_notes, "Gate code 4321")
+
+    def test_registration_with_a_partial_address_is_rejected(self):
+        response = self.client.post(
+            reverse("register"), self._payload(address_line_1="123 Main St"), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(email=self._payload()["email"]).exists())
+
+
+class AddressDefaultAssignmentTests(APITestCase):
+    """Regression tests: a customer's first saved address was never
+    automatically marked as their default -- nothing pointed checkout (or
+    the admin) at any particular one until they happened to hit
+    make_default themselves."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="address-default@braziliansushi.com", username="addressdefault", password="StrongPass123!"
+        )
+        self.client.force_authenticate(self.user)
+
+    def _payload(self, **overrides):
+        payload = {
+            "label": "Home",
+            "recipient_name": "Address Default",
+            "phone_number": "8135550002",
+            "line_1": "1 First St",
+            "city": "Tampa",
+            "state": "FL",
+            "postal_code": "33602",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_the_first_address_becomes_the_default_automatically(self):
+        response = self.client.post(reverse("address-list"), self._payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["is_default"])
+
+    def test_a_second_address_does_not_become_default_unless_requested(self):
+        self.client.post(reverse("address-list"), self._payload(), format="json")
+
+        second = self.client.post(reverse("address-list"), self._payload(line_1="2 Second St"), format="json")
+
+        self.assertFalse(second.data["is_default"])
+        self.assertEqual(Address.objects.filter(user=self.user, is_default=True).count(), 1)
+
+    def test_explicitly_requesting_default_on_a_new_address_unsets_the_old_one(self):
+        self.client.post(reverse("address-list"), self._payload(), format="json")
+
+        second = self.client.post(
+            reverse("address-list"), self._payload(line_1="2 Second St", is_default=True), format="json"
+        )
+
+        self.assertTrue(second.data["is_default"])
+        self.assertEqual(Address.objects.filter(user=self.user, is_default=True).count(), 1)

@@ -145,7 +145,13 @@ class AddressViewSet(viewsets.ModelViewSet):
         return self.request.user.addresses.all()
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        # A customer's very first address has nothing to be "default"
+        # relative to -- make it one automatically instead of leaving every
+        # address unmarked until they think to hit make_default themselves.
+        will_be_default = not self.get_queryset().exists() or serializer.validated_data.get("is_default", False)
+        if will_be_default:
+            self.get_queryset().update(is_default=False)
+        serializer.save(user=self.request.user, is_default=will_be_default)
 
     @action(detail=True, methods=["post"])
     def make_default(self, request, pk=None):

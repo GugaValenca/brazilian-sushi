@@ -14,6 +14,7 @@ import {
   fetchEligibleReviewOrder,
   fetchFavorites,
   fetchOrders,
+  makeDefaultAddress,
   removeFavorite,
   reorderOrder,
   submitReview,
@@ -138,6 +139,15 @@ const AccountPage = () => {
       toast.success("Address saved");
     },
     onError: () => toast.error("Could not save address."),
+  });
+
+  const makeDefaultAddressMutation = useMutation({
+    mutationFn: (addressId: number) => makeDefaultAddress(token!, addressId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["account-addresses", token] });
+      toast.success("Default address updated");
+    },
+    onError: () => toast.error("Could not update your default address."),
   });
 
   const removeFavoriteMutation = useMutation({
@@ -308,7 +318,19 @@ const AccountPage = () => {
               <div className="space-y-3">
                 {addresses.map((address) => (
                   <div key={address.id} className="border border-border rounded-xl p-4">
-                    <p className="font-semibold inline-flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> {address.label} {address.is_default && <span className="text-xs text-primary">Default</span>}</p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <p className="font-semibold inline-flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> {address.label} {address.is_default && <span className="text-xs text-primary">Default</span>}</p>
+                      {!address.is_default && (
+                        <button
+                          type="button"
+                          onClick={() => makeDefaultAddressMutation.mutate(address.id)}
+                          disabled={makeDefaultAddressMutation.isPending}
+                          className="text-sm font-semibold text-primary hover:underline underline-offset-4 disabled:opacity-70"
+                        >
+                          Make default
+                        </button>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground mt-2">{address.line_1}{address.line_2 ? `, ${address.line_2}` : ""} - {address.city}, {address.state} {address.postal_code}</p>
                     {address.delivery_notes && <p className="text-sm text-muted-foreground mt-1 italic">"{address.delivery_notes}"</p>}
                   </div>

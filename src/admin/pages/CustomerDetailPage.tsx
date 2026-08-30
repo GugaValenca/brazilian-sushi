@@ -156,6 +156,32 @@ const CustomerDetailPage = () => {
           </section>
 
           <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="mb-3 font-display text-lg font-bold text-foreground">Addresses</h2>
+            {customer.addresses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No saved addresses -- pickup only, or not provided yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {customer.addresses.map((address) => (
+                  <div key={address.id} className="rounded-lg border border-border p-3 text-sm">
+                    <p className="font-medium text-foreground inline-flex items-center gap-2">
+                      {address.label}
+                      {address.is_default && <StatusBadge status="Default" kind="approval" />}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {address.line_1}
+                      {address.line_2 ? `, ${address.line_2}` : ""} — {address.city}, {address.state} {address.postal_code}
+                    </p>
+                    <p className="text-muted-foreground">{address.recipient_name} · {address.phone_number}</p>
+                    {address.delivery_notes && (
+                      <p className="mt-1 italic text-muted-foreground">"{address.delivery_notes}"</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="mb-3 font-display text-lg font-bold text-foreground">Verification</h2>
             <div className="space-y-2">
               {customer.is_verified_customer ? (

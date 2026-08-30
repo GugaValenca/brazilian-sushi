@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.validators import UniqueValidator
 
 from .models import Address, FavoriteMenuItem
 from .services import send_account_confirmation
@@ -23,6 +24,18 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, max_length=128)
     confirmation_channels = serializers.ListField(child=serializers.CharField(), read_only=True)
     confirmation_required = serializers.BooleanField(read_only=True)
+    # A delivery address is optional at signup -- a customer who only ever
+    # picks up in-store has no reason to provide one, and checkout already
+    # requires one before a *delivery* order can be placed either way. If
+    # they do provide one here, it's saved as their default address so it's
+    # ready to go the first time they order delivery, instead of asking
+    # again at checkout for information they already gave once.
+    address_line_1 = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=255)
+    address_line_2 = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=255)
+    address_city = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=100)
+    address_state = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=2)
+    address_postal_code = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=12)
+    address_delivery_notes = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -39,7 +52,37 @@ class RegisterSerializer(serializers.ModelSerializer):
             "password",
             "confirmation_channels",
             "confirmation_required",
+            "address_line_1",
+            "address_line_2",
+            "address_city",
+            "address_state",
+            "address_postal_code",
+            "address_delivery_notes",
         )
+        extra_kwargs = {
+            # email already has a DB-level unique constraint, which DRF
+            # auto-validates -- overridden here purely for a clearer message
+            # than the default "user with this email already exists.".
+            "email": {
+                "validators": [
+                    UniqueValidator(
+                        queryset=User.objects.all(),
+                        message="An account with this email already exists. Try signing in instead.",
+                    )
+                ]
+            },
+        }
+
+    def validate_phone_number(self, value):
+        # phone_number has no DB-level uniqueness constraint (it's blank=True,
+        # and a plain unique=True would collide every blank phone number
+        # against every other one) -- enforced here instead, and only for a
+        # phone number actually provided.
+        if value and User.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError(
+                "An account with this phone number already exists. Try signing in instead."
+            )
+        return value
 
     def validate(self, attrs):
         # AUTH_PASSWORD_VALIDATORS (backend/settings.py) is otherwise only
@@ -61,11 +104,56 @@ class RegisterSerializer(serializers.ModelSerializer):
             validate_password(attrs.get("password", ""), user=temp_user)
         except DjangoValidationError as exc:
             raise serializers.ValidationError({"password": exc.messages})
+
+        # The address is entirely optional, but a partial one (e.g. a city
+        # with no street) would otherwise silently save an unusable address
+        # row instead of asking for what's missing.
+        address_provided = any(
+            attrs.get(field) for field in ("address_line_1", "address_city", "address_state", "address_postal_code")
+        )
+        if address_provided:
+            missing = [
+                field
+                for field in ("address_line_1", "address_city", "address_state", "address_postal_code")
+                if not attrs.get(field)
+            ]
+            if missing:
+                raise serializers.ValidationError(
+                    {field: "This field is required to save a delivery address." for field in missing}
+                )
+
         return attrs
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+        address_fields = {
+            key: validated_data.pop(key, "")
+            for key in (
+                "address_line_1",
+                "address_line_2",
+                "address_city",
+                "address_state",
+                "address_postal_code",
+                "address_delivery_notes",
+            )
+        }
         user = User.objects.create_user(password=password, is_active=False, **validated_data)
+
+        if address_fields["address_line_1"]:
+            Address.objects.create(
+                user=user,
+                label="Home",
+                recipient_name=user.get_full_name().strip() or user.username,
+                phone_number=user.phone_number,
+                line_1=address_fields["address_line_1"],
+                line_2=address_fields["address_line_2"],
+                city=address_fields["address_city"],
+                state=address_fields["address_state"],
+                postal_code=address_fields["address_postal_code"],
+                delivery_notes=address_fields["address_delivery_notes"],
+                is_default=True,
+            )
+
         channels = send_account_confirmation(user)
         if not channels:
             user.is_active = True
@@ -120,7 +208,19 @@ class UserSerializer(serializers.ModelSerializer):
         return bool(get_eligible_review_order(obj))
 
 
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        exclude = ("user",)
+
+
 class AdminCustomerSerializer(serializers.ModelSerializer):
+    # A customer's saved addresses (including any delivery notes) weren't
+    # visible anywhere in the admin -- staff had no way to see where a
+    # customer lives, or the gate code/building instructions they'd saved,
+    # outside of an order that happened to carry one.
+    addresses = AddressSerializer(many=True, read_only=True)
+
     class Meta:
         model = User
         fields = (
@@ -140,6 +240,7 @@ class AdminCustomerSerializer(serializers.ModelSerializer):
             "is_superuser",
             "is_active",
             "date_joined",
+            "addresses",
         )
         read_only_fields = ("date_joined",)
 
@@ -159,12 +260,6 @@ class SetCustomerPasswordSerializer(serializers.Serializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages)
         return value
-
-
-class AddressSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Address
-        exclude = ("user",)
 
 
 class FavoriteMenuItemSerializer(serializers.ModelSerializer):

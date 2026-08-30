@@ -168,6 +168,12 @@ class OrderSerializer(serializers.ModelSerializer):
     average_delivery_time = serializers.ReadOnlyField()
     has_kitchen_notes = serializers.SerializerMethodField()
     has_allergy_alert = serializers.SerializerMethodField()
+    # Surfaced on the orders list too (not just the detail page) so staff
+    # scanning the queue notice "this one isn't going to the usual place"
+    # without opening each order. None for pickup orders and guest delivery
+    # orders (no Address row to compare against). OrderViewSet's queryset
+    # already select_related()s delivery_address, so this is free.
+    is_delivery_address_default = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -205,6 +211,11 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_has_allergy_alert(self, obj):
         return bool((obj.allergy_notes or "").strip())
 
+    def get_is_delivery_address_default(self, obj):
+        if not obj.delivery_address:
+            return None
+        return obj.delivery_address.is_default
+
 
 class OrderCustomerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -215,7 +226,10 @@ class OrderCustomerSerializer(serializers.ModelSerializer):
 class OrderDeliveryAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Address
-        fields = ("id", "label", "recipient_name", "phone_number", "line_1", "line_2", "city", "state", "postal_code", "delivery_notes")
+        # is_default lets the admin order detail flag "delivering somewhere
+        # other than this customer's usual address" -- worth a second look
+        # before dispatch, not just a silent detail.
+        fields = ("id", "label", "recipient_name", "phone_number", "line_1", "line_2", "city", "state", "postal_code", "delivery_notes", "is_default")
 
 
 class OrderCouponSerializer(serializers.ModelSerializer):

@@ -35,6 +35,9 @@ export interface AdminOrderAddress {
   state: string;
   postal_code: string;
   delivery_notes: string;
+  // False whenever this order is delivering somewhere other than the
+  // customer's usual (default) address -- worth flagging for staff.
+  is_default: boolean;
 }
 
 export interface AdminOrderCoupon {
@@ -112,6 +115,22 @@ export interface StaffOrderSummary {
   average_delivery_minutes: number | null;
 }
 
+export interface StaffCustomerAddress {
+  id: number;
+  label: string;
+  recipient_name: string;
+  phone_number: string;
+  line_1: string;
+  line_2: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  delivery_notes: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface StaffCustomer {
   id: number;
   email: string;
@@ -129,6 +148,7 @@ export interface StaffCustomer {
   is_superuser: boolean;
   is_active: boolean;
   date_joined: string;
+  addresses: StaffCustomerAddress[];
 }
 
 export interface AdminCustomerListParams {

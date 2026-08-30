@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type ColumnDef, type PaginationState } from "@tanstack/react-table";
-import { AlertTriangle, MessageSquareText, Search } from "lucide-react";
+import { AlertTriangle, MapPin, MessageSquareText, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,10 +82,13 @@ const columns: ColumnDef<AdminOrderListItem, unknown>[] = [
     id: "alerts",
     header: "",
     cell: ({ row }) =>
-      row.original.has_allergy_alert || row.original.has_kitchen_notes ? (
+      row.original.has_allergy_alert || row.original.has_kitchen_notes || row.original.is_delivery_address_default === false ? (
         <div className="flex gap-1.5">
           {row.original.has_allergy_alert && <AlertTriangle className="h-4 w-4 text-destructive" aria-label="Allergy alert" />}
           {row.original.has_kitchen_notes && <MessageSquareText className="h-4 w-4 text-primary" aria-label="Kitchen notes" />}
+          {row.original.is_delivery_address_default === false && (
+            <MapPin className="h-4 w-4 text-primary" aria-label="Delivering to a non-default address" />
+          )}
         </div>
       ) : null,
     meta: { className: "hidden lg:table-cell" },

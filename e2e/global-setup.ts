@@ -12,10 +12,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // reset to "received" on every run rather than left as-is, since the admin
 // spec advances its status and a stale, already-confirmed order from a
 // previous run would make "Confirm order" never appear.
+//
+// Also provisions a second customer with two saved addresses (one default,
+// one not) and an order delivered to the non-default one, so the admin spec
+// can assert the "not this customer's default address" warning banner
+// without driving a full signed-in checkout through the browser.
 const PYTHON_SCRIPT = `
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from accounts.models import Address
 from orders.models import Order
 
 User = get_user_model()
@@ -48,6 +54,97 @@ Order.objects.update_or_create(
         "guest_phone": "5555550100",
         "subtotal": "15.00",
         "total": "15.00",
+    },
+)
+
+delivery_customer, _ = User.objects.get_or_create(
+    email="e2e.delivery.customer@example.com",
+    defaults={"username": "e2edeliverycustomer", "first_name": "E2E", "last_name": "DeliveryCustomer"},
+)
+delivery_customer.set_password("StrongPass123!")
+delivery_customer.is_active = True
+delivery_customer.account_confirmed_at = timezone.now()
+delivery_customer.save()
+
+home_address, _ = Address.objects.update_or_create(
+    user=delivery_customer,
+    label="Home",
+    defaults={
+        "recipient_name": "E2E DeliveryCustomer",
+        "phone_number": "5555550101",
+        "line_1": "1 Home Street",
+        "city": "Tampa",
+        "state": "FL",
+        "postal_code": "33601",
+        "is_default": True,
+    },
+)
+work_address, _ = Address.objects.update_or_create(
+    user=delivery_customer,
+    label="Work",
+    defaults={
+        "recipient_name": "E2E DeliveryCustomer",
+        "phone_number": "5555550102",
+        "line_1": "2 Work Avenue",
+        "city": "Tampa",
+        "state": "FL",
+        "postal_code": "33602",
+        "is_default": False,
+    },
+)
+
+Order.objects.update_or_create(
+    guest_email="e2e.nondefault.order@example.com",
+    defaults={
+        "customer": delivery_customer,
+        "delivery_address": work_address,
+        "order_type": Order.OrderType.DELIVERY,
+        "status": Order.Status.RECEIVED,
+        "payment_status": Order.PaymentStatus.NOT_REQUIRED,
+        "guest_name": "E2E NonDefault Order",
+        "guest_phone": "5555550102",
+        "subtotal": "20.00",
+        "total": "25.00",
+    },
+)
+
+address_customer, _ = User.objects.get_or_create(
+    email="e2e.address.customer@example.com",
+    defaults={"username": "e2eaddresscustomer", "first_name": "E2E", "last_name": "AddressCustomer"},
+)
+address_customer.set_password("StrongPass123!")
+address_customer.is_active = True
+address_customer.account_confirmed_at = timezone.now()
+address_customer.save()
+
+# Dedicated to account.spec.ts's Make Default test -- kept separate from
+# delivery_customer's Home/Work above so that test's mutation (flipping
+# which address is_default) can never leave the admin spec's fixture in an
+# inconsistent state depending on file run order.
+Address.objects.update_or_create(
+    user=address_customer,
+    label="Primary",
+    defaults={
+        "recipient_name": "E2E AddressCustomer",
+        "phone_number": "5555550103",
+        "line_1": "3 Primary Lane",
+        "city": "Tampa",
+        "state": "FL",
+        "postal_code": "33603",
+        "is_default": True,
+    },
+)
+Address.objects.update_or_create(
+    user=address_customer,
+    label="Secondary",
+    defaults={
+        "recipient_name": "E2E AddressCustomer",
+        "phone_number": "5555550104",
+        "line_1": "4 Secondary Lane",
+        "city": "Tampa",
+        "state": "FL",
+        "postal_code": "33604",
+        "is_default": False,
     },
 )
 

@@ -16,7 +16,11 @@ function getFriendlySignupError(error: unknown) {
   const message = error.message.toLowerCase();
 
   if (message.includes("email") && message.includes("already exists")) {
-    return "An account with this email already exists. Please sign in or use a different email address.";
+    return "This customer is already registered -- an account with this email already exists. Please sign in or use a different email address.";
+  }
+
+  if (message.includes("phone") && message.includes("already exists")) {
+    return "This customer is already registered -- an account with this phone number already exists. Please sign in or use a different number.";
   }
 
   if (message.includes("username") && message.includes("already exists")) {
@@ -24,6 +28,10 @@ function getFriendlySignupError(error: unknown) {
   }
 
   if (message.includes("automatic sign-in")) {
+    return error.message;
+  }
+
+  if (message.includes("required to save a delivery address")) {
     return error.message;
   }
 
@@ -56,6 +64,24 @@ const RegisterPage = () => {
     password: "",
     notification_preference: "both" as "sms" | "email" | "both",
   });
+
+  // Entirely optional -- a customer who only ever picks up in-store has no
+  // reason to give a street address. Left collapsed by default so it never
+  // reads as a required step; opening it commits to filling in the core
+  // fields, matching the backend's all-or-nothing validation.
+  const [wantsAddress, setWantsAddress] = useState(false);
+  const [address, setAddress] = useState({
+    address_line_1: "",
+    address_line_2: "",
+    address_city: "",
+    address_state: "",
+    address_postal_code: "",
+    address_delivery_notes: "",
+  });
+
+  const updateAddressField = <K extends keyof typeof address>(field: K, value: (typeof address)[K]) => {
+    setAddress((current) => ({ ...current, [field]: value }));
+  };
 
   const mutation = useMutation({
     mutationFn: register,
@@ -105,6 +131,20 @@ const RegisterPage = () => {
               phone_number: form.phone_number.trim(),
               sms_opt_in: form.notification_preference !== "email",
               email_opt_in: form.notification_preference !== "sms",
+              // Omitted entirely (not sent as empty strings) when the
+              // section is closed -- the backend treats "not provided" and
+              // "all fields blank" the same, but this keeps the payload
+              // honest about what the customer actually chose to share.
+              ...(wantsAddress
+                ? {
+                    address_line_1: address.address_line_1.trim(),
+                    address_line_2: address.address_line_2.trim(),
+                    address_city: address.address_city.trim(),
+                    address_state: address.address_state.trim(),
+                    address_postal_code: address.address_postal_code.trim(),
+                    address_delivery_notes: address.address_delivery_notes.trim(),
+                  }
+                : {}),
             });
           }}
           className="bg-card border border-border rounded-2xl p-8 space-y-6"
@@ -160,6 +200,97 @@ const RegisterPage = () => {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="border border-border rounded-xl p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={wantsAddress}
+                onChange={(e) => setWantsAddress(e.target.checked)}
+                className="mt-1 h-4 w-4"
+              />
+              <span>
+                <span className="text-sm font-medium block">Save a delivery address (optional)</span>
+                <span className="text-xs text-muted-foreground">
+                  Skip this if you'll only pick up in-store. If you do add one, it becomes your default delivery
+                  address -- you can still deliver to a different address for any specific order later, or add more
+                  addresses from your account page.
+                </span>
+              </span>
+            </label>
+
+            {wantsAddress && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label htmlFor="register-address-line1" className="text-sm font-medium block mb-2">Address line 1</label>
+                  <input
+                    id="register-address-line1"
+                    required
+                    autoComplete="address-line1"
+                    value={address.address_line_1}
+                    onChange={(e) => updateAddressField("address_line_1", e.target.value)}
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="register-address-line2" className="text-sm font-medium block mb-2">Address line 2 (optional)</label>
+                  <input
+                    id="register-address-line2"
+                    autoComplete="address-line2"
+                    value={address.address_line_2}
+                    onChange={(e) => updateAddressField("address_line_2", e.target.value)}
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
+                  />
+                </div>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <label htmlFor="register-address-city" className="text-sm font-medium block mb-2">City</label>
+                    <input
+                      id="register-address-city"
+                      required
+                      autoComplete="address-level2"
+                      value={address.address_city}
+                      onChange={(e) => updateAddressField("address_city", e.target.value)}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="register-address-state" className="text-sm font-medium block mb-2">State</label>
+                    <input
+                      id="register-address-state"
+                      required
+                      autoComplete="address-level1"
+                      value={address.address_state}
+                      onChange={(e) => updateAddressField("address_state", e.target.value)}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="register-address-postal" className="text-sm font-medium block mb-2">Postal code</label>
+                    <input
+                      id="register-address-postal"
+                      required
+                      autoComplete="postal-code"
+                      value={address.address_postal_code}
+                      onChange={(e) => updateAddressField("address_postal_code", e.target.value)}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="register-address-notes" className="text-sm font-medium block mb-2">Delivery instructions (optional)</label>
+                  <textarea
+                    id="register-address-notes"
+                    rows={2}
+                    value={address.address_delivery_notes}
+                    onChange={(e) => updateAddressField("address_delivery_notes", e.target.value)}
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
+                    placeholder="Gate code, floor, landmark..."
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <button type="submit" disabled={mutation.isPending} className="w-full bg-gradient-gold text-primary-foreground py-3.5 rounded-lg font-semibold disabled:opacity-70">

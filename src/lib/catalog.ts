@@ -136,6 +136,10 @@ export interface OrderResponse {
   notification_preference: string;
   has_kitchen_notes: boolean;
   has_allergy_alert: boolean;
+  // null for pickup orders and a guest's delivery order (no saved Address
+  // to compare against); false means this order is going somewhere other
+  // than the customer's usual default address -- worth a second look.
+  is_delivery_address_default: boolean | null;
   subtotal: string;
   delivery_fee: string;
   discount_amount: string;

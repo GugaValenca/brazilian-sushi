@@ -244,6 +244,14 @@ const OrderDetailPage = () => {
             </h2>
             {order.order_type === "delivery" && order.delivery_address ? (
               <div className="text-sm text-muted-foreground">
+                {!order.delivery_address.is_default && (
+                  <div className="mb-2 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2.5 text-xs">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="text-primary">
+                      This is not the customer's default address — double-check before dispatch.
+                    </span>
+                  </div>
+                )}
                 <p className="font-medium text-foreground">{order.delivery_address.recipient_name}</p>
                 <p>
                   {order.delivery_address.line_1}

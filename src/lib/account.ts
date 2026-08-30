@@ -41,6 +41,15 @@ export interface RegisterPayload {
   sms_opt_in: boolean;
   email_opt_in: boolean;
   password: string;
+  // Entirely optional -- a customer who only ever picks up in-store has no
+  // reason to provide one. If given, all four of line_1/city/state/postal_code
+  // must be present; the backend rejects a partial address outright.
+  address_line_1?: string;
+  address_line_2?: string;
+  address_city?: string;
+  address_state?: string;
+  address_postal_code?: string;
+  address_delivery_notes?: string;
 }
 
 export interface LoginPayload {
