@@ -33,6 +33,7 @@ const MenuPage = () => {
     queryFn: () => fetchMenuItems(),
     staleTime: 1000 * 60 * 10,
   });
+  const hasApiItems = (menuApiItems?.length ?? 0) > 0;
 
   const { data: categoriesApi } = useQuery({
     queryKey: ["menu-categories"],
@@ -72,8 +73,8 @@ const MenuPage = () => {
   }, [categoriesApi]);
 
   const sourceItems = useMemo(() => {
-    return menuApiItems?.length ? menuApiItems.map(normalizeMenuItem) : fallbackItems;
-  }, [menuApiItems]);
+    return hasApiItems && menuApiItems ? menuApiItems.map(normalizeMenuItem) : fallbackItems;
+  }, [hasApiItems, menuApiItems]);
 
   const filtered = useMemo(() => {
     let items = sourceItems;
@@ -160,7 +161,7 @@ const MenuPage = () => {
           </div>
         </div>
 
-        {isLoading && !menuApiItems?.length ? (
+        {isLoading && !hasApiItems ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, index) => (
               <div key={index} className="bg-card rounded-xl border border-border overflow-hidden animate-pulse">

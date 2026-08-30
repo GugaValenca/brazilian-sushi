@@ -1,25 +1,14 @@
 import { motion } from "framer-motion";
 import { Flame, Heart, Leaf } from "lucide-react";
 
-export interface MenuItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  image: string;
-  category: string;
-  spicy?: boolean;
-  vegetarian?: boolean;
-  allergens?: string[];
-  featured?: boolean;
-}
+import type { NormalizedMenuItem } from "@/lib/catalog";
 
 interface MenuCardProps {
-  item: MenuItem;
+  item: NormalizedMenuItem;
   index?: number;
-  onAddToCart?: (item: MenuItem) => void;
+  onAddToCart?: (item: NormalizedMenuItem) => void;
   isFavorite?: boolean;
-  onToggleFavorite?: (item: MenuItem) => void;
+  onToggleFavorite?: (item: NormalizedMenuItem) => void;
 }
 
 const MenuCard = ({ item, index = 0, onAddToCart, isFavorite = false, onToggleFavorite }: MenuCardProps) => (

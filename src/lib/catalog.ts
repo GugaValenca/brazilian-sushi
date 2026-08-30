@@ -261,6 +261,6 @@ export async function trackOrder(orderId: string, token: string) {
 }
 
 export async function submitContactMessage(payload: ContactMessagePayload) {
-  return apiFormRequest<ContactMessageResponse>("/marketing/contact-messages/", payload);
+  return apiFormRequest<ContactMessageResponse, ContactMessagePayload>("/marketing/contact-messages/", payload);
 }
 

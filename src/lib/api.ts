@@ -127,7 +127,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   return parseResponse<T>(response);
 }
 
-export async function apiFormRequest<T>(path: string, body: Record<string, string>): Promise<T> {
+export async function apiFormRequest<T, TBody extends object>(path: string, body: TBody): Promise<T> {
   return apiRequest<T>(path, {
     method: "POST",
     body: JSON.stringify(body),

@@ -83,9 +83,18 @@ const AppWarmup = () => {
       });
     };
 
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(() => warm(), { timeout: 1500 });
-      return () => window.cancelIdleCallback(idleId);
+    // requestIdleCallback isn't implemented in Safari, so the fallback branch
+    // below is real -- typed as optional here (TS's own lib.dom typings
+    // declare it as always present, which doesn't match reality and made
+    // a plain `"requestIdleCallback" in window` check untypeable).
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const idleId = idleWindow.requestIdleCallback(() => warm(), { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
     }
 
     const timeoutId = window.setTimeout(warm, 400);
