@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -5,11 +7,63 @@ from datetime import timedelta
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import ContactMessage, Review
+from .models import ContactMessage, Coupon, Review
 from orders.models import Order
 from menu.models import Category, MenuItem
 
 User = get_user_model()
+
+
+class CouponVisibilityTests(APITestCase):
+    """Regression test: coupons used to be publicly listable/readable (like
+    promotions legitimately are) even though nothing in the storefront ever
+    reads them -- checkout applies one by ID once a customer already has a
+    code, it never browses the collection. That let anyone enumerate every
+    currently-active code, including ones meant only for a targeted
+    campaign."""
+
+    def setUp(self):
+        self.coupon = Coupon.objects.create(
+            code="WELCOME10",
+            description="10% off",
+            discount_type=Coupon.DiscountType.PERCENTAGE,
+            value=Decimal("10.00"),
+            active=True,
+            starts_at=timezone.now() - timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=30),
+        )
+
+    def test_anonymous_cannot_list_coupons(self):
+        response = self.client.get(reverse("coupon-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_anonymous_cannot_retrieve_a_coupon_by_id(self):
+        response = self.client.get(reverse("coupon-detail", args=[self.coupon.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_authenticated_non_staff_customer_cannot_list_coupons_either(self):
+        customer = User.objects.create_user(
+            email="coupon-customer@braziliansushi.com", username="couponcustomer", password="StrongPass123!"
+        )
+        self.client.force_authenticate(customer)
+
+        response = self.client.get(reverse("coupon-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_list_coupons(self):
+        staff = User.objects.create_user(
+            email="coupon-staff@braziliansushi.com", username="couponstaff", password="StrongPass123!", is_staff=True
+        )
+        self.client.force_authenticate(staff)
+
+        response = self.client.get(reverse("coupon-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        codes = {row["code"] for row in response.data["results"]}
+        self.assertIn(self.coupon.code, codes)
 
 
 class ReviewSubmissionTests(APITestCase):

@@ -33,19 +33,18 @@ class PromotionViewSet(viewsets.ModelViewSet):
 
 
 class CouponViewSet(viewsets.ModelViewSet):
+    """Staff-only, unlike PromotionViewSet above -- promotions are meant to
+    be browsed publicly (the homepage does), but nothing in the storefront
+    reads coupons at all today (checkout applies one by ID once a customer
+    already has a code, it never lists them). Making this endpoint
+    AllowAny for reads let anyone enumerate every currently-active coupon
+    code with no legitimate feature depending on that -- codes meant for a
+    targeted campaign (e.g. emailed to specific customers) were fully
+    public to list."""
+
     serializer_class = CouponSerializer
-
-    def get_permissions(self):
-        if self.request.method in permissions.SAFE_METHODS:
-            return [permissions.AllowAny()]
-        return [permissions.IsAdminUser()]
-
-    def get_queryset(self):
-        queryset = Coupon.objects.all()
-        if self.request.user.is_staff:
-            return queryset
-        now = timezone.now()
-        return queryset.filter(active=True, starts_at__lte=now, ends_at__gte=now)
+    permission_classes = [permissions.IsAdminUser]
+    queryset = Coupon.objects.all()
 
 
 class ReviewViewSet(viewsets.ModelViewSet):

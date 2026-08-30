@@ -29,6 +29,9 @@ class Promotion(models.Model):
     active = models.BooleanField(default=True)
     featured = models.BooleanField(default=False)
 
+    class Meta:
+        ordering = ["-starts_at"]
+
 
 class Coupon(models.Model):
     class DiscountType(models.TextChoices):
@@ -44,6 +47,9 @@ class Coupon(models.Model):
     active = models.BooleanField(default=True)
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["code"]
 
 
 class Review(models.Model):
