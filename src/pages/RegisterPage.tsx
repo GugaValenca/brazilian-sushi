@@ -27,6 +27,14 @@ function getFriendlySignupError(error: unknown) {
     return error.message;
   }
 
+  // The backend validates password strength (AUTH_PASSWORD_VALIDATORS) and
+  // returns a specific, actionable reason -- e.g. "Password: This password
+  // is too common." -- which is worth showing as-is instead of the generic
+  // fallback below.
+  if (message.includes("password")) {
+    return error.message;
+  }
+
   return "We couldn't create your account right now. Please review your details and try again.";
 }
 

@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import update_last_login
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
@@ -33,6 +35,28 @@ class RegisterSerializer(serializers.ModelSerializer):
             "confirmation_channels",
             "confirmation_required",
         )
+
+    def validate(self, attrs):
+        # AUTH_PASSWORD_VALIDATORS (backend/settings.py) is otherwise only
+        # ever enforced by Django's own forms (the admin's "add user" form,
+        # `manage.py changepassword`) -- nothing wired it up for this API
+        # registration endpoint, so it silently accepted passwords like
+        # "password" or "12345678" despite CommonPasswordValidator and
+        # NumericPasswordValidator being configured. Building an unsaved
+        # User from the other submitted fields lets
+        # UserAttributeSimilarityValidator do its job too (reject a password
+        # that's just the user's own email or name).
+        temp_user = User(
+            email=attrs.get("email", ""),
+            username=attrs.get("username", ""),
+            first_name=attrs.get("first_name", ""),
+            last_name=attrs.get("last_name", ""),
+        )
+        try:
+            validate_password(attrs.get("password", ""), user=temp_user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": exc.messages})
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop("password")

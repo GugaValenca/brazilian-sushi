@@ -149,3 +149,52 @@ class LoginEnumerationTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("pending confirmation", str(response.data).lower())
+
+
+class RegistrationPasswordStrengthTests(APITestCase):
+    """Regression tests: AUTH_PASSWORD_VALIDATORS (backend/settings.py) was
+    configured but never actually invoked by registration -- confirmed by
+    registering real accounts with "password", "12345678", and "qwertyui"
+    over real HTTP and getting a 201 back for all three."""
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def _payload(self, password, email=None, username=None):
+        return {
+            "email": email or "weak-password-test@braziliansushi.com",
+            "username": username or "weakpasswordtest",
+            "first_name": "Weak",
+            "last_name": "Password",
+            "phone_number": "8135551234",
+            "notification_preference": "email",
+            "sms_opt_in": False,
+            "email_opt_in": True,
+            "password": password,
+        }
+
+    def test_common_password_is_rejected(self):
+        response = self.client.post(reverse("register"), self._payload("password"), format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.data)
+
+    def test_all_numeric_password_is_rejected(self):
+        response = self.client.post(reverse("register"), self._payload("12345678"), format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.data)
+
+    def test_password_matching_the_users_own_email_is_rejected(self):
+        response = self.client.post(
+            reverse("register"),
+            self._payload("carlossilva", email="carlossilva@braziliansushi.com", username="carlossilva"),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.data)
+
+    def test_a_genuinely_strong_password_is_still_accepted(self):
+        response = self.client.post(reverse("register"), self._payload("Tr0ub4dor&Zebra!91"), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
