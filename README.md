@@ -284,7 +284,7 @@ a new migration — check `git log` for new files under `*/migrations/`.
 ## ⚠️ Known Limitations
 
 - Stripe integration has been verified for webhook signature handling, idempotency, and graceful failure when unconfigured, but not yet against a real Stripe test-mode checkout end to end (no test account was available during development). It's opt-in and inert until `STRIPE_SECRET_KEY` is set, so this doesn't affect the app otherwise.
-- No self-service password reset for customers. A superuser can set a staff member's password directly from the admin's Customer detail page, but customer-facing self-service reset still needs an email provider, which production doesn't have configured.
+- No self-service password reset for customers yet -- production now has an email provider configured (account confirmation emails send for real), but the reset-request/reset-via-token flow itself hasn't been built. A superuser can still set a staff member's password directly from the admin's Customer detail page in the meantime.
 - Menu item and review photo uploads have no dedicated UI in the admin yet — the fields exist end to end (model, API, serializer), but setting an image today still means uploading it outside the app and pointing the field at it.
 - Review photo and menu item image uploads use local file storage, which doesn't reliably persist on Vercel's serverless runtime. Fine for anything baked into the deployment (seeded menu data, build-time assets); a real upload at runtime needs an external object store (S3, Cloudinary, R2) wired in before it's dependable.
 - Sentry is supported but not currently configured in production, so unhandled errors there aren't surfaced automatically — checking Vercel's function logs is still a manual step.
