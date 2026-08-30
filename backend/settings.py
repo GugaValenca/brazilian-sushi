@@ -27,11 +27,23 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "http://127.0.0.1:8080,h
 # Refuse to boot with production-unsafe settings instead of silently running
 # exposed. This only ever fires when DEBUG=False, so local development
 # (DEBUG=true by default) is unaffected.
+MIN_SECRET_KEY_LENGTH = 32
+
 if not DEBUG:
     if SECRET_KEY == INSECURE_DEFAULT_SECRET_KEY:
         raise ImproperlyConfigured(
             "DJANGO_SECRET_KEY must be set to a unique, unpredictable value in production "
             "(DEBUG=False). Refusing to start with the insecure default key."
+        )
+    if len(SECRET_KEY) < MIN_SECRET_KEY_LENGTH:
+        # The check above only ever caught the literal default string — a
+        # short-but-different value (e.g. a placeholder like "changeme123")
+        # would have passed it and signed every session and JWT with a key
+        # weak enough to brute-force. Confirmed the current production key
+        # is 71 characters before adding this, so this doesn't affect it.
+        raise ImproperlyConfigured(
+            f"DJANGO_SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters in production "
+            "(DEBUG=False). Refusing to start with a weak key."
         )
     if not ALLOWED_HOSTS:
         raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be set when DEBUG=False.")
@@ -103,6 +115,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "backend.middleware.SecurityHeadersMiddleware",
     "backend.middleware.AdminNoCacheMiddleware",
+    "backend.middleware.AdminLoginThrottleMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
