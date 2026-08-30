@@ -88,7 +88,28 @@ def handle_webhook_event(payload, sig_header):
         logger.warning("Rejected Stripe webhook: invalid payload or signature")
         return None
 
-    if event["type"] != "checkout.session.completed":
+    try:
+        if event["type"] != "checkout.session.completed":
+            return None
+
+        # event["data"]["object"] is a StripeObject, not a plain dict, in
+        # this SDK version (15.x) — .get() on it raises AttributeError
+        # ("use .to_dict() to convert it"), which crashed this endpoint with
+        # a 500 on every real webhook delivery until this was caught by an
+        # actual signed request in testing, not by the existing unit tests
+        # (which only covered the "not configured" and "bad signature"
+        # paths, never a valid one reaching this far).
+        session = event["data"]["object"].to_dict()
+        order_id = session.get("client_reference_id")
+        session_id = session.get("id")
+    except (KeyError, AttributeError, TypeError):
+        # A signed event can still have an unexpected shape (a Stripe event
+        # type we don't otherwise handle, or a future API change) — this
+        # endpoint must never 500 on it, only decline to process it.
+        logger.exception("Stripe webhook had an unexpected event shape")
+        return None
+
+    if not order_id or not session_id:
         return None
 
     # Imported lazily to avoid a module-load-time circular import between
@@ -96,12 +117,6 @@ def handle_webhook_event(payload, sig_header):
     # the Order model to process the webhook it triggers).
     from orders.models import Order
     from orders.services import apply_status_transition
-
-    session = event["data"]["object"]
-    order_id = session.get("client_reference_id")
-    session_id = session.get("id")
-    if not order_id or not session_id:
-        return None
 
     try:
         order = Order.objects.get(pk=order_id, stripe_checkout_session_id=session_id)
@@ -114,5 +129,11 @@ def handle_webhook_event(payload, sig_header):
 
     order.payment_status = Order.PaymentStatus.PAID
     order.save(update_fields=["payment_status"])
-    apply_status_transition(order, Order.Status.CONFIRMED, note="Payment confirmed via Stripe")
+    # Only advance the kitchen workflow if it's still sitting at its initial
+    # state. Stripe webhooks can arrive late or be retried (network hiccups,
+    # temporary outages) — without this guard, a delayed webhook landing
+    # after staff had already moved the order along (or all the way to
+    # delivered) would silently regress it back to "confirmed".
+    if order.status == Order.Status.RECEIVED:
+        apply_status_transition(order, Order.Status.CONFIRMED, note="Payment confirmed via Stripe")
     return order
