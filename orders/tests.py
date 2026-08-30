@@ -934,3 +934,96 @@ class DeliveryZoneAdminManagementTests(APITestCase):
         search_results = self.client.get(reverse("delivery-zone-list"), {"search": "Downtown"})
         names = {row["name"] for row in search_results.data["results"]}
         self.assertEqual(names, {self.active_zone.name})
+
+
+class DeliveryOrderRequiresAnAddressTests(APITestCase):
+    """Regression tests for a genuinely broken delivery flow: a delivery
+    order could be placed with a zone (and its fee) but no street address
+    at all -- the kitchen would confirm and prepare an order with nowhere
+    to actually send it."""
+
+    def setUp(self):
+        category = Category.objects.create(name="Rolls", slug="delivery-address-required-rolls")
+        self.menu_item = MenuItem.objects.create(
+            category=category,
+            name="Salmon Roll",
+            slug="salmon-roll-delivery-address-test",
+            short_description="Classic roll",
+            price=Decimal("15.00"),
+        )
+        self.zone = DeliveryZone.objects.create(name="Downtown", postal_code="33602", fee=Decimal("4.99"))
+
+    def _payload(self, **overrides):
+        payload = {
+            "order_type": Order.OrderType.DELIVERY,
+            "delivery_zone": self.zone.id,
+            "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_guest_delivery_order_without_an_address_is_rejected(self):
+        response = self.client.post(
+            reverse("order-list"),
+            self._payload(
+                guest_name="Guest", guest_email="guest-no-address@braziliansushi.com", guest_phone="5551234567",
+                notification_preference="email",
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("guest_delivery_line_1", response.data)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_guest_delivery_order_with_a_complete_address_is_accepted(self):
+        response = self.client.post(
+            reverse("order-list"),
+            self._payload(
+                guest_name="Guest",
+                guest_email="guest-with-address@braziliansushi.com",
+                guest_phone="5551234567",
+                notification_preference="email",
+                guest_delivery_line_1="123 Main St",
+                guest_delivery_line_2="Apt 4B",
+                guest_delivery_city="Tampa",
+                guest_delivery_state="FL",
+                guest_delivery_postal_code="33602",
+                guest_delivery_notes="Gate code 4321, leave at the door.",
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(pk=response.data["id"])
+        self.assertEqual(order.guest_delivery_line_1, "123 Main St")
+        self.assertEqual(order.guest_delivery_city, "Tampa")
+        self.assertEqual(order.guest_delivery_notes, "Gate code 4321, leave at the door.")
+
+    def test_authenticated_delivery_order_without_a_selected_address_is_rejected(self):
+        user = User.objects.create_user(
+            email="delivery-no-address@braziliansushi.com", username="deliverynoaddress", password="StrongPass123!"
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(reverse("order-list"), self._payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("delivery_address", response.data)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_pickup_order_never_requires_an_address(self):
+        response = self.client.post(
+            reverse("order-list"),
+            {
+                "order_type": Order.OrderType.PICKUP,
+                "guest_name": "Guest",
+                "guest_email": "guest-pickup@braziliansushi.com",
+                "guest_phone": "5551234567",
+                "notification_preference": "email",
+                "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

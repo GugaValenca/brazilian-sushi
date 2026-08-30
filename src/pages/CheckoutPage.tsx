@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Clock, MapPin, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,8 +8,30 @@ import SectionHeading from "@/components/SectionHeading";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { createAddress, fetchAddresses, type AddressPayload } from "@/lib/account";
 import { createOrder, fetchDeliveryZones } from "@/lib/catalog";
 import { canSubmitOrder, computeDeliveryFee } from "@/lib/checkout";
+
+const initialGuestAddress = {
+  line1: "",
+  line2: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  notes: "",
+};
+
+const initialNewAddressForm: AddressPayload = {
+  label: "Home",
+  recipient_name: "",
+  phone_number: "",
+  line_1: "",
+  line_2: "",
+  city: "",
+  state: "",
+  postal_code: "",
+  delivery_notes: "",
+};
 
 const CheckoutPage = () => {
   usePageMeta({
@@ -19,6 +41,7 @@ const CheckoutPage = () => {
   });
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const paymentWasCancelled = searchParams.get("payment") === "cancelled";
   const { items, subtotal, updateQuantity, removeItem, clearCart } = useCart();
@@ -31,6 +54,12 @@ const CheckoutPage = () => {
   const [allergyNotes, setAllergyNotes] = useState("");
   const [notificationPreference, setNotificationPreference] = useState<"sms" | "email" | "both">("both");
   const [deliveryZoneId, setDeliveryZoneId] = useState<number | undefined>(undefined);
+  // A signed-in customer's selected saved address.
+  const [deliveryAddressId, setDeliveryAddressId] = useState<number | undefined>(undefined);
+  // A guest's inline delivery address (no account to save it against).
+  const [guestAddress, setGuestAddress] = useState(initialGuestAddress);
+  const [addingNewAddress, setAddingNewAddress] = useState(false);
+  const [newAddressForm, setNewAddressForm] = useState<AddressPayload>(initialNewAddressForm);
 
   const { data: deliveryZones } = useQuery({
     queryKey: ["delivery-zones"],
@@ -46,6 +75,33 @@ const CheckoutPage = () => {
   const deliveryFee = computeDeliveryFee(orderType, selectedZone);
   const total = subtotal + deliveryFee;
   const isSignedIn = Boolean(isAuthenticated && user && tokens?.access);
+
+  const { data: savedAddresses, isLoading: addressesLoading } = useQuery({
+    queryKey: ["account-addresses", tokens?.access],
+    queryFn: () => fetchAddresses(tokens!.access),
+    enabled: isSignedIn && orderType === "delivery",
+  });
+
+  // Once the customer's saved addresses load, default to whichever one is
+  // marked as their default (or the first one) instead of leaving delivery
+  // silently unselected -- most orders go to the same place every time.
+  useEffect(() => {
+    if (!deliveryAddressId && savedAddresses && savedAddresses.length > 0) {
+      setDeliveryAddressId((savedAddresses.find((address) => address.is_default) ?? savedAddresses[0]).id);
+    }
+  }, [savedAddresses, deliveryAddressId]);
+
+  const addAddressMutation = useMutation({
+    mutationFn: () => createAddress(tokens!.access, newAddressForm),
+    onSuccess: async (address) => {
+      await queryClient.invalidateQueries({ queryKey: ["account-addresses", tokens?.access] });
+      setDeliveryAddressId(address.id);
+      setAddingNewAddress(false);
+      setNewAddressForm(initialNewAddressForm);
+      toast.success("Address saved");
+    },
+    onError: () => toast.error("Could not save that address."),
+  });
 
   const orderMutation = useMutation({
     mutationFn: (payload: Parameters<typeof createOrder>[0]) => createOrder(payload, tokens?.access),
@@ -78,18 +134,34 @@ const CheckoutPage = () => {
     guestPhone,
     orderType,
     deliveryZoneId,
+    deliveryAddressId,
+    guestDeliveryAddress: {
+      line1: guestAddress.line1,
+      city: guestAddress.city,
+      state: guestAddress.state,
+      postalCode: guestAddress.postalCode,
+    },
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
 
+    const isDelivery = orderType === "delivery";
+
     orderMutation.mutate({
       order_type: orderType,
-      delivery_zone: orderType === "delivery" ? deliveryZoneId : undefined,
+      delivery_zone: isDelivery ? deliveryZoneId : undefined,
+      delivery_address: isDelivery && isSignedIn ? deliveryAddressId : undefined,
       guest_name: isSignedIn ? undefined : guestName,
       guest_email: isSignedIn ? undefined : guestEmail,
       guest_phone: isSignedIn ? undefined : guestPhone,
+      guest_delivery_line_1: isDelivery && !isSignedIn ? guestAddress.line1 : undefined,
+      guest_delivery_line_2: isDelivery && !isSignedIn ? guestAddress.line2 : undefined,
+      guest_delivery_city: isDelivery && !isSignedIn ? guestAddress.city : undefined,
+      guest_delivery_state: isDelivery && !isSignedIn ? guestAddress.state : undefined,
+      guest_delivery_postal_code: isDelivery && !isSignedIn ? guestAddress.postalCode : undefined,
+      guest_delivery_notes: isDelivery && !isSignedIn ? guestAddress.notes : undefined,
       notes,
       allergy_notes: allergyNotes,
       notification_preference: isSignedIn ? undefined : notificationPreference,
@@ -270,6 +342,117 @@ const CheckoutPage = () => {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {orderType === "delivery" && (
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
+                  <h3 className="text-xl font-display font-bold">Delivery Address</h3>
+                  <p className="text-sm text-muted-foreground">
+                    The street address and any instructions your driver needs to actually find you.
+                  </p>
+
+                  {isSignedIn ? (
+                    <div className="space-y-4">
+                      {addressesLoading ? (
+                        <p className="text-sm text-muted-foreground">Loading your saved addresses...</p>
+                      ) : savedAddresses && savedAddresses.length > 0 ? (
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          {savedAddresses.map((address) => (
+                            <button
+                              key={address.id}
+                              type="button"
+                              onClick={() => setDeliveryAddressId(address.id)}
+                              className={`rounded-xl border p-4 text-left ${deliveryAddressId === address.id ? "border-primary bg-primary/5" : "border-border"}`}
+                            >
+                              <p className="font-semibold inline-flex items-center gap-2">
+                                {address.label}
+                                {address.is_default && <span className="text-xs text-primary">Default</span>}
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {address.line_1}
+                                {address.line_2 ? `, ${address.line_2}` : ""} — {address.city}, {address.state} {address.postal_code}
+                              </p>
+                              {address.delivery_notes && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">"{address.delivery_notes}"</p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : !addingNewAddress ? (
+                        <p className="text-sm text-muted-foreground">You have no saved addresses yet. Add one below to continue.</p>
+                      ) : null}
+
+                      {addingNewAddress ? (
+                        <div className="rounded-xl border border-border p-4 space-y-3">
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <input aria-label="Address label" value={newAddressForm.label} onChange={(e) => setNewAddressForm((c) => ({ ...c, label: e.target.value }))} placeholder="Label (e.g. Home)" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <input aria-label="Recipient name" value={newAddressForm.recipient_name} onChange={(e) => setNewAddressForm((c) => ({ ...c, recipient_name: e.target.value }))} placeholder="Recipient name" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <input aria-label="Phone" value={newAddressForm.phone_number} onChange={(e) => setNewAddressForm((c) => ({ ...c, phone_number: e.target.value }))} placeholder="Phone number" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <input aria-label="Address line 1" value={newAddressForm.line_1} onChange={(e) => setNewAddressForm((c) => ({ ...c, line_1: e.target.value }))} placeholder="Address line 1" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <input aria-label="Address line 2" value={newAddressForm.line_2} onChange={(e) => setNewAddressForm((c) => ({ ...c, line_2: e.target.value }))} placeholder="Apt, suite, etc. (optional)" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <input aria-label="City" value={newAddressForm.city} onChange={(e) => setNewAddressForm((c) => ({ ...c, city: e.target.value }))} placeholder="City" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <input aria-label="State" value={newAddressForm.state} onChange={(e) => setNewAddressForm((c) => ({ ...c, state: e.target.value.toUpperCase() }))} placeholder="State" maxLength={2} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <input aria-label="Postal code" value={newAddressForm.postal_code} onChange={(e) => setNewAddressForm((c) => ({ ...c, postal_code: e.target.value }))} placeholder="Postal code" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                          </div>
+                          <textarea aria-label="Delivery notes" value={newAddressForm.delivery_notes} onChange={(e) => setNewAddressForm((c) => ({ ...c, delivery_notes: e.target.value }))} rows={2} placeholder="Gate code, building instructions, where to leave the order..." className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm resize-none" />
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => addAddressMutation.mutate()}
+                              disabled={
+                                addAddressMutation.isPending ||
+                                !(newAddressForm.recipient_name && newAddressForm.phone_number && newAddressForm.line_1 && newAddressForm.city && newAddressForm.state && newAddressForm.postal_code)
+                              }
+                              className="bg-gradient-gold text-primary-foreground px-6 py-3 rounded-lg font-semibold disabled:opacity-70"
+                            >
+                              {addAddressMutation.isPending ? "Saving..." : "Save Address"}
+                            </button>
+                            {savedAddresses && savedAddresses.length > 0 && (
+                              <button type="button" onClick={() => setAddingNewAddress(false)} className="border border-border px-6 py-3 rounded-lg font-semibold">
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => setAddingNewAddress(true)} className="text-sm font-semibold text-primary hover:underline">
+                          + Add a new address
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2 sm:col-span-2">
+                          <label htmlFor="guest-address-line1" className="text-sm font-semibold">Address Line 1</label>
+                          <input id="guest-address-line1" required value={guestAddress.line1} onChange={(e) => setGuestAddress((c) => ({ ...c, line1: e.target.value }))} placeholder="Street address" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <label htmlFor="guest-address-line2" className="text-sm font-semibold">Address Line 2</label>
+                          <input id="guest-address-line2" value={guestAddress.line2} onChange={(e) => setGuestAddress((c) => ({ ...c, line2: e.target.value }))} placeholder="Apt, suite, etc. (optional)" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                        </div>
+                        <div className="space-y-2">
+                          <label htmlFor="guest-address-city" className="text-sm font-semibold">City</label>
+                          <input id="guest-address-city" required value={guestAddress.city} onChange={(e) => setGuestAddress((c) => ({ ...c, city: e.target.value }))} placeholder="City" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="guest-address-state" className="text-sm font-semibold">State</label>
+                            <input id="guest-address-state" required maxLength={2} value={guestAddress.state} onChange={(e) => setGuestAddress((c) => ({ ...c, state: e.target.value.toUpperCase() }))} placeholder="FL" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                          </div>
+                          <div className="space-y-2">
+                            <label htmlFor="guest-address-postal" className="text-sm font-semibold">Postal Code</label>
+                            <input id="guest-address-postal" required value={guestAddress.postalCode} onChange={(e) => setGuestAddress((c) => ({ ...c, postalCode: e.target.value }))} placeholder="Postal code" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label htmlFor="guest-address-notes" className="text-sm font-semibold">Delivery Instructions</label>
+                        <textarea id="guest-address-notes" value={guestAddress.notes} onChange={(e) => setGuestAddress((c) => ({ ...c, notes: e.target.value }))} rows={2} placeholder="Gate code, building instructions, where to leave the order..." className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm resize-none" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -122,6 +122,15 @@ export interface OrderResponse {
   guest_name: string;
   guest_email: string;
   guest_phone: string;
+  // Only ever populated for a guest's delivery order -- an authenticated
+  // customer's delivery order carries a delivery_address (a saved Address)
+  // instead, and a pickup order has neither.
+  guest_delivery_line_1: string;
+  guest_delivery_line_2: string;
+  guest_delivery_city: string;
+  guest_delivery_state: string;
+  guest_delivery_postal_code: string;
+  guest_delivery_notes: string;
   notes: string;
   allergy_notes: string;
   notification_preference: string;
@@ -159,9 +168,21 @@ export interface ContactMessageResponse extends ContactMessagePayload {
 export interface CreateOrderPayload {
   delivery_zone?: number;
   order_type: "delivery" | "pickup";
+  // A signed-in customer's delivery order: the id of one of their saved
+  // addresses (see src/lib/account.ts's Address). Required by the backend
+  // whenever order_type is "delivery" and the customer is authenticated.
+  delivery_address?: number;
   guest_name?: string;
   guest_email?: string;
   guest_phone?: string;
+  // A guest's delivery order: required by the backend whenever order_type
+  // is "delivery" and there's no account to hold a saved address against.
+  guest_delivery_line_1?: string;
+  guest_delivery_line_2?: string;
+  guest_delivery_city?: string;
+  guest_delivery_state?: string;
+  guest_delivery_postal_code?: string;
+  guest_delivery_notes?: string;
   scheduled_for?: string;
   notes?: string;
   allergy_notes?: string;

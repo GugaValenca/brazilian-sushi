@@ -310,6 +310,7 @@ const AccountPage = () => {
                   <div key={address.id} className="border border-border rounded-xl p-4">
                     <p className="font-semibold inline-flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> {address.label} {address.is_default && <span className="text-xs text-primary">Default</span>}</p>
                     <p className="text-sm text-muted-foreground mt-2">{address.line_1}{address.line_2 ? `, ${address.line_2}` : ""} - {address.city}, {address.state} {address.postal_code}</p>
+                    {address.delivery_notes && <p className="text-sm text-muted-foreground mt-1 italic">"{address.delivery_notes}"</p>}
                   </div>
                 ))}
               </div>
@@ -323,6 +324,7 @@ const AccountPage = () => {
                 <input aria-label="State" value={addressForm.state} onChange={(e) => setAddressForm((c) => ({ ...c, state: e.target.value.toUpperCase() }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="State" maxLength={2} />
                 <input aria-label="Postal code" value={addressForm.postal_code} onChange={(e) => setAddressForm((c) => ({ ...c, postal_code: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Postal code" />
               </div>
+              <textarea aria-label="Delivery notes" value={addressForm.delivery_notes} onChange={(e) => setAddressForm((c) => ({ ...c, delivery_notes: e.target.value }))} rows={2} placeholder="Gate code, building instructions, where to leave the order... (optional)" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm resize-none" />
               <button type="button" onClick={() => createAddressMutation.mutate()} disabled={createAddressMutation.isPending} className="border border-primary/30 px-6 py-3 rounded-lg font-semibold disabled:opacity-70">{createAddressMutation.isPending ? "Saving..." : "Add Address"}</button>
             </section>
           </div>

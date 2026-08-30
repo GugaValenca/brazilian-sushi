@@ -254,8 +254,22 @@ const OrderDetailPage = () => {
                 </p>
                 {order.delivery_address.delivery_notes && <p className="mt-1 italic">"{order.delivery_address.delivery_notes}"</p>}
               </div>
+            ) : order.order_type === "delivery" && order.guest_delivery_line_1 ? (
+              // A guest's delivery order has no accounts.Address row (its
+              // user FK is required) -- the address lives directly on the
+              // order instead. See orders/models.py's guest_delivery_* fields.
+              <div className="text-sm text-muted-foreground">
+                <p>
+                  {order.guest_delivery_line_1}
+                  {order.guest_delivery_line_2 ? `, ${order.guest_delivery_line_2}` : ""}
+                </p>
+                <p>
+                  {order.guest_delivery_city}, {order.guest_delivery_state} {order.guest_delivery_postal_code}
+                </p>
+                {order.guest_delivery_notes && <p className="mt-1 italic">"{order.guest_delivery_notes}"</p>}
+              </div>
             ) : order.order_type === "delivery" ? (
-              <p className="text-sm text-muted-foreground">No saved address on file for this order.</p>
+              <p className="text-sm text-muted-foreground">No address on file for this order.</p>
             ) : (
               <p className="text-sm text-muted-foreground">Customer will pick up in store.</p>
             )}

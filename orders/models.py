@@ -55,6 +55,18 @@ class Order(models.Model):
     guest_name = models.CharField(max_length=120, blank=True)
     guest_email = models.EmailField(blank=True)
     guest_phone = models.CharField(max_length=20, blank=True)
+    # A guest has no account to hold an accounts.Address row against (its
+    # user FK is required, not nullable) -- these mirror that model's fields
+    # directly on the order, the same pattern already used for guest_name/
+    # guest_email/guest_phone instead of requiring an account. Populated
+    # only for a guest's delivery order; an authenticated customer's
+    # delivery order uses delivery_address above instead.
+    guest_delivery_line_1 = models.CharField(max_length=255, blank=True)
+    guest_delivery_line_2 = models.CharField(max_length=255, blank=True)
+    guest_delivery_city = models.CharField(max_length=100, blank=True)
+    guest_delivery_state = models.CharField(max_length=2, blank=True)
+    guest_delivery_postal_code = models.CharField(max_length=12, blank=True)
+    guest_delivery_notes = models.TextField(blank=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
     allergy_notes = models.TextField(blank=True)

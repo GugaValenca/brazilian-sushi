@@ -62,6 +62,12 @@ class CreateOrderSerializer(serializers.ModelSerializer):
             "guest_name",
             "guest_email",
             "guest_phone",
+            "guest_delivery_line_1",
+            "guest_delivery_line_2",
+            "guest_delivery_city",
+            "guest_delivery_state",
+            "guest_delivery_postal_code",
+            "guest_delivery_notes",
             "scheduled_for",
             "notes",
             "allergy_notes",
@@ -86,17 +92,43 @@ class CreateOrderSerializer(serializers.ModelSerializer):
             attrs["guest_email"] = user.email
             attrs["guest_phone"] = user.phone_number
             attrs["notification_preference"] = user.notification_preference
-            return attrs
+        else:
+            missing_fields = [
+                field_name
+                for field_name in ("guest_name", "guest_email", "guest_phone", "notification_preference")
+                if not attrs.get(field_name)
+            ]
+            if missing_fields:
+                raise serializers.ValidationError(
+                    {field_name: "This field is required for guest checkout." for field_name in missing_fields}
+                )
 
-        missing_fields = [
-            field_name
-            for field_name in ("guest_name", "guest_email", "guest_phone", "notification_preference")
-            if not attrs.get(field_name)
-        ]
-        if missing_fields:
-            raise serializers.ValidationError(
-                {field_name: "This field is required for guest checkout." for field_name in missing_fields}
-            )
+        # A delivery order with nowhere to actually deliver to previously
+        # sailed straight through: delivery_zone only ever priced a fee for
+        # a broad postal-code area, never carried a street address, and
+        # nothing here required one. The kitchen would confirm and prepare
+        # an order with genuinely no address on file.
+        if attrs.get("order_type") == Order.OrderType.DELIVERY:
+            if user:
+                if not attrs.get("delivery_address"):
+                    raise serializers.ValidationError(
+                        {"delivery_address": "Select a delivery address for this order."}
+                    )
+            else:
+                missing_address_fields = [
+                    field_name
+                    for field_name in (
+                        "guest_delivery_line_1",
+                        "guest_delivery_city",
+                        "guest_delivery_state",
+                        "guest_delivery_postal_code",
+                    )
+                    if not attrs.get(field_name)
+                ]
+                if missing_address_fields:
+                    raise serializers.ValidationError(
+                        {field_name: "This field is required for delivery." for field_name in missing_address_fields}
+                    )
 
         return attrs
 

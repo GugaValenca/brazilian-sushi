@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { DeliveryZone } from "@/lib/catalog";
 
-import { canSubmitOrder, computeDeliveryFee, type OrderReadinessInput } from "./checkout";
+import { canSubmitOrder, computeDeliveryFee, type GuestDeliveryAddressInput, type OrderReadinessInput } from "./checkout";
+
+const emptyGuestAddress: GuestDeliveryAddressInput = { line1: "", city: "", state: "", postalCode: "" };
+const completeGuestAddress: GuestDeliveryAddressInput = {
+  line1: "123 Main St",
+  city: "Tampa",
+  state: "FL",
+  postalCode: "33602",
+};
 
 function readiness(overrides: Partial<OrderReadinessInput> = {}): OrderReadinessInput {
   return {
@@ -13,6 +21,8 @@ function readiness(overrides: Partial<OrderReadinessInput> = {}): OrderReadiness
     guestPhone: "555-0100",
     orderType: "pickup",
     deliveryZoneId: undefined,
+    deliveryAddressId: undefined,
+    guestDeliveryAddress: emptyGuestAddress,
     ...overrides,
   };
 }
@@ -51,8 +61,44 @@ describe("canSubmitOrder", () => {
   });
 
   it("blocks a delivery order until a delivery zone is selected", () => {
-    expect(canSubmitOrder(readiness({ orderType: "delivery" }))).toBe(false);
-    expect(canSubmitOrder(readiness({ orderType: "delivery", deliveryZoneId: 1 }))).toBe(true);
+    expect(
+      canSubmitOrder(readiness({ orderType: "delivery", guestDeliveryAddress: completeGuestAddress })),
+    ).toBe(false);
+    expect(
+      canSubmitOrder(
+        readiness({ orderType: "delivery", deliveryZoneId: 1, guestDeliveryAddress: completeGuestAddress }),
+      ),
+    ).toBe(true);
+  });
+
+  it("blocks a guest delivery order until a complete address is entered", () => {
+    expect(canSubmitOrder(readiness({ orderType: "delivery", deliveryZoneId: 1 }))).toBe(false);
+    expect(
+      canSubmitOrder(
+        readiness({ orderType: "delivery", deliveryZoneId: 1, guestDeliveryAddress: { ...completeGuestAddress, city: "" } }),
+      ),
+    ).toBe(false);
+    expect(
+      canSubmitOrder(
+        readiness({ orderType: "delivery", deliveryZoneId: 1, guestDeliveryAddress: completeGuestAddress }),
+      ),
+    ).toBe(true);
+  });
+
+  it("blocks a signed-in delivery order until a saved address is selected", () => {
+    expect(
+      canSubmitOrder(readiness({ isSignedIn: true, orderType: "delivery", deliveryZoneId: 1 })),
+    ).toBe(false);
+    expect(
+      canSubmitOrder(
+        readiness({ isSignedIn: true, orderType: "delivery", deliveryZoneId: 1, deliveryAddressId: 7 }),
+      ),
+    ).toBe(true);
+  });
+
+  it("never requires a delivery address for a pickup order", () => {
+    expect(canSubmitOrder(readiness({ orderType: "pickup" }))).toBe(true);
+    expect(canSubmitOrder(readiness({ isSignedIn: true, orderType: "pickup" }))).toBe(true);
   });
 });
 
