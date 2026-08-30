@@ -47,16 +47,19 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 
 ### 🧑‍🍳 Restaurant Operations
 
-- Django admin plus a custom staff dashboard for queue visibility, quick status updates, and a 7-day revenue chart
-- Order lifecycle support across received, confirmed, preparing, ready, out for delivery, and delivered states
-- Verified customer controls tied to loyalty and operational workflows
-- Review moderation, promotions, coupons, and contact-message handling
+- A dedicated admin back office at `/admin` — a full React SPA (not Django admin) with its own sidebar shell, sortable/filterable/paginated data tables, confirmation dialogs before destructive actions, and a Ctrl/Cmd+K command palette, covering orders, menu, delivery zones, customers, staff, coupons, promotions, reviews, and contact messages to the same depth
+- Order queue and detail view with server-side search/filtering, a status workflow that only offers the transitions valid from an order's current state, one-click cancellation, and a real Stripe refund action
+- Order lifecycle support across received, confirmed, preparing, ready, out for delivery, and delivered states, with a terminal-state guard preventing an order from being reopened after delivery or cancellation
+- Menu management with categories, items, pricing/availability, and per-item customization options (option groups/choices) — previously Django-admin-only
+- Verified customer controls, superuser-gated staff access management (grant/revoke, password reset), and loyalty-tied operational workflows
+- Review moderation, promotions, coupons, and contact-message handling, each with full CRUD in the admin
 - Health endpoint and production-ready environment setup for deployment verification
 
 ### 🔐 Security
 
 - Every write to an order's price, status, coupon, or payment state goes through a permission-checked, audited action — the public order endpoint cannot be used to rewrite them directly, and a saved address can only ever be attached to an order by the customer who owns it
-- Rate limiting on authentication endpoints (login, register, resend confirmation), order creation, and the Django admin login (5 wrong attempts/min, independent of the API's own throttling) via DRF throttling and a small custom middleware
+- Rate limiting on authentication endpoints (login, register, resend confirmation) and order creation via DRF throttling
+- Granting or revoking staff/superuser access requires the acting user to already be a superuser — plain staff can manage everything else in the admin, but can't escalate themselves or anyone else
 - Registration enforces Django's password validators (rejects common, all-numeric, or account-similar passwords) instead of only a minimum length
 - The app refuses to boot with `DEBUG=False` unless a real, sufficiently long `SECRET_KEY` and `ALLOWED_HOSTS` are configured, instead of running exposed
 - Content-Security-Policy, HSTS, X-Frame-Options, Referrer-Policy, and Permissions-Policy headers on both the API (Django middleware) and the static frontend (`vercel.json`)
@@ -80,7 +83,8 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 ![Menu Page](docs/screenshots/menu-page.png)
 ![Checkout Page](docs/screenshots/checkout-page.png)
 ![Account Page](docs/screenshots/account-page.png)
-![Staff Dashboard](docs/screenshots/staff-dashboard.png)
+![Admin Overview](docs/screenshots/admin-overview.png)
+![Admin Orders](docs/screenshots/admin-orders.png)
 
 ## 🛠 Technology Stack
 
@@ -92,9 +96,11 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 - Tailwind CSS
 - shadcn/ui
 - TanStack Query
+- TanStack Table (admin data tables)
 - React Router
 - Framer Motion
-- Recharts (staff revenue chart)
+- Recharts (admin revenue chart)
+- cmdk (admin command palette)
 
 ### Backend
 
@@ -109,7 +115,7 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 ### Testing
 
 - Vitest + Testing Library (frontend unit tests)
-- Playwright (end-to-end: guest checkout, authenticated login)
+- Playwright (end-to-end: guest checkout, authenticated login, staff order management)
 - Django `TestCase` / DRF `APITestCase` (backend unit and integration tests)
 
 ### Deployment
@@ -252,8 +258,8 @@ Every variable lives in `.env.example` with a safe default. The notable groups:
 ## ⚠️ Known Limitations
 
 - Stripe integration has been verified for webhook signature handling, idempotency, and graceful failure when unconfigured, but not yet against a real Stripe test-mode checkout end to end (no test account was available during development). It's opt-in and inert until `STRIPE_SECRET_KEY` is set, so this doesn't affect the app otherwise.
-- No self-service password reset for customers or staff — resetting one today means doing it directly in the database or Django admin.
-- No refund flow. A cancelled or disputed order has to be handled manually in the Stripe dashboard and reflected on the order by hand.
+- No self-service password reset for customers. A superuser can set a staff member's password directly from the admin's Customer detail page, but customer-facing self-service reset still needs an email provider, which production doesn't have configured.
+- Menu item and review photo uploads have no dedicated UI in the admin yet — the fields exist end to end (model, API, serializer), but setting an image today still means uploading it outside the app and pointing the field at it.
 - Review photo and menu item image uploads use local file storage, which doesn't reliably persist on Vercel's serverless runtime. Fine for anything baked into the deployment (seeded menu data, build-time assets); a real upload at runtime needs an external object store (S3, Cloudinary, R2) wired in before it's dependable.
 - Sentry is supported but not currently configured in production, so unhandled errors there aren't surfaced automatically — checking Vercel's function logs is still a manual step.
 
