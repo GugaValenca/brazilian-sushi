@@ -150,3 +150,53 @@ class MenuOptionPricingTests(APITestCase):
         prices = {option["name"]: option["price_delta"] for option in option_group["options"]}
         self.assertEqual(prices["Extra Salmon"], "3.50")
         self.assertEqual(prices["Standard Tofu"], "0.00")
+
+
+class MenuOptionAdminManagementTests(APITestCase):
+    """Regression coverage for the option-group/option API surface added for
+    the admin menu manager -- previously this only existed via Django admin
+    inline editing, with no API at all."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            email="menu-options-staff@braziliansushi.com", username="menuoptionsstaff", password="StrongPass123!", is_staff=True
+        )
+        self.category = Category.objects.create(name="Combos", slug="option-admin-combos")
+        self.menu_item = MenuItem.objects.create(
+            category=self.category,
+            name="Build Your Own Bowl",
+            slug="build-your-own-bowl-admin-test",
+            short_description="Choose your protein",
+            price=Decimal("18.00"),
+        )
+
+    def test_anonymous_cannot_create_an_option_group(self):
+        response = self.client.post(
+            reverse("menu-option-group-list"),
+            {"menu_item": self.menu_item.id, "name": "Protein", "required": True, "min_select": 1, "max_select": 1},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_staff_can_create_an_option_group_and_option(self):
+        self.client.force_authenticate(self.staff)
+
+        group_response = self.client.post(
+            reverse("menu-option-group-list"),
+            {"menu_item": self.menu_item.id, "name": "Protein", "required": True, "min_select": 1, "max_select": 1},
+            format="json",
+        )
+        self.assertEqual(group_response.status_code, status.HTTP_201_CREATED)
+        group_id = group_response.data["id"]
+
+        option_response = self.client.post(
+            reverse("menu-option-list"),
+            {"group": group_id, "name": "Salmon", "price_delta": "2.00", "is_default": False},
+            format="json",
+        )
+        self.assertEqual(option_response.status_code, status.HTTP_201_CREATED)
+
+        detail_response = self.client.get(reverse("menu-item-detail", args=[self.menu_item.id]))
+        self.assertEqual(len(detail_response.data["option_groups"]), 1)
+        self.assertEqual(detail_response.data["option_groups"][0]["options"][0]["name"], "Salmon")

@@ -87,3 +87,20 @@ class AdminMenuItemSerializer(serializers.ModelSerializer):
             "calories",
             "availability",
         )
+
+
+class AdminMenuOptionGroupSerializer(serializers.ModelSerializer):
+    """MenuOptionGroupSerializer (above) is the read-only, nested-under-a-menu-item
+    shape used by the public menu. This is the standalone, writable shape the
+    admin's option-group management screen needs -- previously there was no
+    API surface for this at all, only Django-admin inline editing."""
+
+    class Meta:
+        model = MenuOptionGroup
+        fields = ("id", "menu_item", "name", "required", "min_select", "max_select")
+
+
+class AdminMenuOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MenuOption
+        fields = ("id", "group", "name", "price_delta", "is_default")

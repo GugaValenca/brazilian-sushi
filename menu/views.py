@@ -1,7 +1,14 @@
 from rest_framework import filters, permissions, viewsets
 
-from .models import Category, MenuItem
-from .serializers import AdminCategorySerializer, AdminMenuItemSerializer, CategorySerializer, MenuItemSerializer
+from .models import Category, MenuItem, MenuOption, MenuOptionGroup
+from .serializers import (
+    AdminCategorySerializer,
+    AdminMenuItemSerializer,
+    AdminMenuOptionGroupSerializer,
+    AdminMenuOptionSerializer,
+    CategorySerializer,
+    MenuItemSerializer,
+)
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -59,3 +66,21 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         if self.request.user.is_staff:
             return queryset
         return queryset.exclude(availability=MenuItem.Availability.HIDDEN)
+
+
+class MenuOptionGroupViewSet(viewsets.ModelViewSet):
+    """Staff-only management of an item's customization groups (e.g. "Choose
+    your protein"). Previously had no API surface at all -- only Django
+    admin's inline editing. Public menu browsing still gets these nested
+    read-only under MenuItemSerializer.option_groups; this is purely the
+    admin management surface."""
+
+    queryset = MenuOptionGroup.objects.select_related("menu_item").prefetch_related("options")
+    serializer_class = AdminMenuOptionGroupSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+class MenuOptionViewSet(viewsets.ModelViewSet):
+    queryset = MenuOption.objects.select_related("group")
+    serializer_class = AdminMenuOptionSerializer
+    permission_classes = [permissions.IsAdminUser]
