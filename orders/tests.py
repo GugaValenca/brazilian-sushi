@@ -875,3 +875,14 @@ class DeliveryZoneAdminManagementTests(APITestCase):
         )
         self.assertEqual(update_response.status_code, status.HTTP_200_OK)
         self.assertEqual(update_response.data["fee"], "7.50")
+
+    def test_staff_can_filter_by_active_and_search_by_name(self):
+        self.client.force_authenticate(self.staff)
+
+        active_only = self.client.get(reverse("delivery-zone-list"), {"active": "false"})
+        names = {row["name"] for row in active_only.data["results"]}
+        self.assertEqual(names, {self.inactive_zone.name})
+
+        search_results = self.client.get(reverse("delivery-zone-list"), {"search": "Downtown"})
+        names = {row["name"] for row in search_results.data["results"]}
+        self.assertEqual(names, {self.active_zone.name})

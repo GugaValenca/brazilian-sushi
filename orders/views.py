@@ -27,6 +27,8 @@ class DeliveryZoneViewSet(viewsets.ModelViewSet):
 
     queryset = DeliveryZone.objects.all()
     serializer_class = DeliveryZoneSerializer
+    filter_backends = [drf_filters.SearchFilter]
+    search_fields = ["name", "postal_code"]
 
     def get_permissions(self):
         if self.request.method in permissions.SAFE_METHODS:
@@ -36,6 +38,11 @@ class DeliveryZoneViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.request.user.is_staff:
+            active = self.request.query_params.get("active")
+            if active == "true":
+                queryset = queryset.filter(active=True)
+            elif active == "false":
+                queryset = queryset.filter(active=False)
             return queryset
         return queryset.filter(active=True)
 
