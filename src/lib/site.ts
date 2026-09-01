@@ -1,8 +1,8 @@
 export const businessInfo = {
   name: "Brazilian Sushi",
-  phoneDisplay: "(555) 123-4567",
-  phoneHref: "tel:+15551234567",
-  whatsappHref: "https://wa.me/15551234567",
+  phoneDisplay: "(781) 885-4174",
+  phoneHref: "tel:+17818854174",
+  whatsappHref: "https://wa.me/17818854174",
   telegramHref: "https://t.me/braziliansushi",
   email: "hello@braziliansushi.com",
   emailHref: "mailto:hello@braziliansushi.com",
