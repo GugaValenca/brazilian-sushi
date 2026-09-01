@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Clock, MapPin, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SectionHeading from "@/components/SectionHeading";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -389,7 +390,23 @@ const CheckoutPage = () => {
                             <input aria-label="Address label" value={newAddressForm.label} onChange={(e) => setNewAddressForm((c) => ({ ...c, label: e.target.value }))} placeholder="Label (e.g. Home)" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
                             <input aria-label="Recipient name" value={newAddressForm.recipient_name} onChange={(e) => setNewAddressForm((c) => ({ ...c, recipient_name: e.target.value }))} placeholder="Recipient name" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
                             <input aria-label="Phone" value={newAddressForm.phone_number} onChange={(e) => setNewAddressForm((c) => ({ ...c, phone_number: e.target.value }))} placeholder="Phone number" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
-                            <input aria-label="Address line 1" value={newAddressForm.line_1} onChange={(e) => setNewAddressForm((c) => ({ ...c, line_1: e.target.value }))} placeholder="Address line 1" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                            <AddressAutocomplete
+                              id="checkout-new-address-line1"
+                              ariaLabel="Address line 1"
+                              value={newAddressForm.line_1}
+                              onChange={(value) => setNewAddressForm((c) => ({ ...c, line_1: value }))}
+                              onSelect={(suggestion) =>
+                                setNewAddressForm((c) => ({
+                                  ...c,
+                                  line_1: suggestion.line_1,
+                                  city: suggestion.city,
+                                  state: suggestion.state,
+                                  postal_code: suggestion.postal_code,
+                                }))
+                              }
+                              placeholder="Address line 1"
+                              className="bg-background border border-border rounded-lg px-4 py-3 text-sm w-full"
+                            />
                             <input aria-label="Address line 2" value={newAddressForm.line_2} onChange={(e) => setNewAddressForm((c) => ({ ...c, line_2: e.target.value }))} placeholder="Apt, suite, etc. (optional)" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
                             <input aria-label="City" value={newAddressForm.city} onChange={(e) => setNewAddressForm((c) => ({ ...c, city: e.target.value }))} placeholder="City" className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
                             <input aria-label="State" value={newAddressForm.state} onChange={(e) => setNewAddressForm((c) => ({ ...c, state: e.target.value.toUpperCase() }))} placeholder="State" maxLength={2} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" />
@@ -426,7 +443,23 @@ const CheckoutPage = () => {
                       <div className="grid sm:grid-cols-2 gap-4">
                         <div className="space-y-2 sm:col-span-2">
                           <label htmlFor="guest-address-line1" className="text-sm font-semibold">Address Line 1</label>
-                          <input id="guest-address-line1" required value={guestAddress.line1} onChange={(e) => setGuestAddress((c) => ({ ...c, line1: e.target.value }))} placeholder="Street address" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm" />
+                          <AddressAutocomplete
+                            id="guest-address-line1"
+                            required
+                            value={guestAddress.line1}
+                            onChange={(value) => setGuestAddress((c) => ({ ...c, line1: value }))}
+                            onSelect={(suggestion) =>
+                              setGuestAddress((c) => ({
+                                ...c,
+                                line1: suggestion.line_1,
+                                city: suggestion.city,
+                                state: suggestion.state,
+                                postalCode: suggestion.postal_code,
+                              }))
+                            }
+                            placeholder="Street address"
+                            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
+                          />
                         </div>
                         <div className="space-y-2 sm:col-span-2">
                           <label htmlFor="guest-address-line2" className="text-sm font-semibold">Address Line 2</label>

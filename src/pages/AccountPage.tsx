@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart, MapPin, ShieldCheck, Star, Truck } from "lucide-react";
 import { toast } from "sonner";
 
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SectionHeading from "@/components/SectionHeading";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -340,7 +341,23 @@ const AccountPage = () => {
                 <input aria-label="Address label" value={addressForm.label} onChange={(e) => setAddressForm((c) => ({ ...c, label: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Label" />
                 <input aria-label="Recipient name" value={addressForm.recipient_name} onChange={(e) => setAddressForm((c) => ({ ...c, recipient_name: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Recipient name" />
                 <input aria-label="Phone" value={addressForm.phone_number} onChange={(e) => setAddressForm((c) => ({ ...c, phone_number: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Phone" />
-                <input aria-label="Address line 1" value={addressForm.line_1} onChange={(e) => setAddressForm((c) => ({ ...c, line_1: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Address line 1" />
+                <AddressAutocomplete
+                  id="account-address-line1"
+                  value={addressForm.line_1}
+                  onChange={(value) => setAddressForm((c) => ({ ...c, line_1: value }))}
+                  onSelect={(suggestion) =>
+                    setAddressForm((c) => ({
+                      ...c,
+                      line_1: suggestion.line_1,
+                      city: suggestion.city,
+                      state: suggestion.state,
+                      postal_code: suggestion.postal_code,
+                    }))
+                  }
+                  className="bg-background border border-border rounded-lg px-4 py-3 text-sm w-full"
+                  placeholder="Address line 1"
+                  ariaLabel="Address line 1"
+                />
                 <input aria-label="Address line 2" value={addressForm.line_2} onChange={(e) => setAddressForm((c) => ({ ...c, line_2: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="Address line 2" />
                 <input aria-label="City" value={addressForm.city} onChange={(e) => setAddressForm((c) => ({ ...c, city: e.target.value }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="City" />
                 <input aria-label="State" value={addressForm.state} onChange={(e) => setAddressForm((c) => ({ ...c, state: e.target.value.toUpperCase() }))} className="bg-background border border-border rounded-lg px-4 py-3 text-sm" placeholder="State" maxLength={2} />

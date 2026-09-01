@@ -43,12 +43,15 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 - Checkout flow with delivery or pickup, guest ordering, allergy notes, special instructions, and notification preferences
 - Optional Stripe Checkout payment step — priced entirely server-side from the order that was just created
 - Secure guest order tracking through a tracking token
-- Customer account with saved addresses, favorites, order history, profile settings, and review submission for verified customers
+- Customer account with saved addresses (a default address plus the option to deliver a specific order elsewhere), favorites, order history, profile settings, and review submission for verified customers
+- Address autocomplete at registration, checkout, and the account page — suggestions appear while typing and fill in city/state/postal code on selection, backed by a free, keyless geocoder called server-side
+- Branded HTML confirmation email (with a plain-text fallback) sent on registration, plus SMS via Twilio when configured
 
 ### 🧑‍🍳 Restaurant Operations
 
 - A dedicated admin back office at `/admin` — a full React SPA (not Django admin) with its own sidebar shell, sortable/filterable/paginated data tables, confirmation dialogs before destructive actions, and a Ctrl/Cmd+K command palette, covering orders, menu, delivery zones, customers, staff, coupons, promotions, reviews, and contact messages to the same depth
 - Order queue and detail view with server-side search/filtering, a status workflow that only offers the transitions valid from an order's current state, one-click cancellation, and a real Stripe refund action
+- A visible warning, both in the order queue and on the order detail page, whenever a delivery order is going to an address other than the customer's default -- easy to miss otherwise
 - Order lifecycle support across received, confirmed, preparing, ready, out for delivery, and delivered states, with a terminal-state guard preventing an order from being reopened after delivery or cancellation
 - Menu management with categories, items, pricing/availability, and per-item customization options (option groups/choices) — previously Django-admin-only
 - Verified customer controls, superuser-gated staff access management (grant/revoke, password reset), and loyalty-tied operational workflows
@@ -108,6 +111,7 @@ The project was intentionally built to stay realistic and interview-friendly: mo
 - Django REST Framework
 - Simple JWT
 - Stripe (Checkout + webhooks, optional)
+- Photon (free, keyless OpenStreetMap geocoder, address autocomplete)
 - drf-spectacular (OpenAPI schema / Swagger UI)
 - PostgreSQL with Neon in production
 - SQLite for local development

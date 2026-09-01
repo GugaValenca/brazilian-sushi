@@ -4,47 +4,11 @@ import { useMutation } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SectionHeading from "@/components/SectionHeading";
 import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
-
-function getFriendlySignupError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return "We couldn't create your account right now. Please review your details and try again.";
-  }
-
-  const message = error.message.toLowerCase();
-
-  if (message.includes("email") && message.includes("already exists")) {
-    return "This customer is already registered -- an account with this email already exists. Please sign in or use a different email address.";
-  }
-
-  if (message.includes("phone") && message.includes("already exists")) {
-    return "This customer is already registered -- an account with this phone number already exists. Please sign in or use a different number.";
-  }
-
-  if (message.includes("username") && message.includes("already exists")) {
-    return "That username is already in use. Please choose another one and try again.";
-  }
-
-  if (message.includes("automatic sign-in")) {
-    return error.message;
-  }
-
-  if (message.includes("required to save a delivery address")) {
-    return error.message;
-  }
-
-  // The backend validates password strength (AUTH_PASSWORD_VALIDATORS) and
-  // returns a specific, actionable reason -- e.g. "Password: This password
-  // is too common." -- which is worth showing as-is instead of the generic
-  // fallback below.
-  if (message.includes("password")) {
-    return error.message;
-  }
-
-  return "We couldn't create your account right now. Please review your details and try again.";
-}
+import { getFriendlySignupError } from "@/lib/registrationErrors";
 
 const RegisterPage = () => {
   usePageMeta({
@@ -224,12 +188,21 @@ const RegisterPage = () => {
               <div className="mt-4 space-y-4">
                 <div>
                   <label htmlFor="register-address-line1" className="text-sm font-medium block mb-2">Address line 1</label>
-                  <input
+                  <AddressAutocomplete
                     id="register-address-line1"
                     required
-                    autoComplete="address-line1"
                     value={address.address_line_1}
-                    onChange={(e) => updateAddressField("address_line_1", e.target.value)}
+                    onChange={(value) => updateAddressField("address_line_1", value)}
+                    onSelect={(suggestion) =>
+                      setAddress((current) => ({
+                        ...current,
+                        address_line_1: suggestion.line_1,
+                        address_city: suggestion.city,
+                        address_state: suggestion.state,
+                        address_postal_code: suggestion.postal_code,
+                      }))
+                    }
+                    placeholder="Start typing your street address..."
                     className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
                   />
                 </div>
@@ -260,9 +233,11 @@ const RegisterPage = () => {
                     <input
                       id="register-address-state"
                       required
+                      maxLength={2}
                       autoComplete="address-level1"
                       value={address.address_state}
-                      onChange={(e) => updateAddressField("address_state", e.target.value)}
+                      onChange={(e) => updateAddressField("address_state", e.target.value.toUpperCase())}
+                      placeholder="FL"
                       className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm"
                     />
                   </div>
