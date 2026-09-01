@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AddressAutocompleteView,
     AddressViewSet,
     ConfirmAccountView,
     CustomerAdminViewSet,
@@ -26,6 +27,7 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("confirm-account/", ConfirmAccountView.as_view(), name="confirm-account"),
     path("resend-confirmation/", ResendConfirmationView.as_view(), name="resend-confirmation"),
+    path("address-lookup/", AddressAutocompleteView.as_view(), name="address-lookup"),
     path("profile/", ProfileView.as_view(), name="profile"),
     path("", include(router.urls)),
 ]

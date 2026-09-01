@@ -3,7 +3,8 @@ from base64 import b64encode
 from urllib import error, parse, request
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -36,19 +37,25 @@ def available_confirmation_channels(user):
 
 def send_confirmation_email(user, confirmation_url):
     subject = "Confirm your Brazilian Sushi account"
-    body = (
-        f"Hi {user.first_name or user.username},\n\n"
-        "Welcome to Brazilian Sushi. Please confirm your account to activate sign-in, order history, and account benefits.\n\n"
-        f"Confirmation link: {confirmation_url}\n\n"
-        "If you did not create this account, you can safely ignore this message."
-    )
-    send_mail(
+    context = {
+        "first_name": user.first_name or user.username,
+        "confirmation_url": confirmation_url,
+        "year": timezone.now().year,
+    }
+    # A plain-text alternative isn't just a fallback for text-only clients --
+    # it's also what many spam filters expect to see alongside an HTML body,
+    # and what screen readers and preview panes show first.
+    text_body = render_to_string("accounts/emails/account_confirmation.txt", context)
+    html_body = render_to_string("accounts/emails/account_confirmation.html", context)
+
+    message = EmailMultiAlternatives(
         subject=subject,
-        message=body,
+        body=text_body,
         from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
+        to=[user.email],
     )
+    message.attach_alternative(html_body, "text/html")
+    message.send(fail_silently=False)
 
 
 def send_confirmation_sms(user, confirmation_url):

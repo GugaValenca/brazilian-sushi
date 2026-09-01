@@ -1,0 +1,9 @@
+Hi {{ first_name }}, welcome aboard.
+
+Thanks for creating a Brazilian Sushi account -- premium sushi crafted with Japanese precision and Brazilian soul, delivered or ready for pickup. Confirm your email to activate sign-in, order history, and account benefits.
+
+Confirm your account: {{ confirmation_url }}
+
+If you didn't create this account, you can safely ignore this email -- no further action is needed.
+
+Brazilian Sushi

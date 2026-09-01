@@ -248,6 +248,11 @@ REST_FRAMEWORK = {
         # the kitchen queue can be flooded with junk orders far faster than
         # any real customer would ever place them.
         "order_create": "20/min",
+        # Debounced client-side (see AddressAutocomplete.tsx), so a real
+        # person typing one address rarely fires more than a handful of
+        # these -- capped mainly to keep this endpoint from being used as an
+        # anonymous, unlimited proxy onto the third-party lookup it calls.
+        "address_lookup": "30/min",
     },
 }
 

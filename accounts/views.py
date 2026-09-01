@@ -10,6 +10,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from .address_lookup import fetch_address_suggestions
 from .serializers import (
     BrazilianSushiTokenObtainPairSerializer,
     ConfirmAccountSerializer,
@@ -127,6 +128,27 @@ class ResendConfirmationView(APIView):
             {"detail": "If an account is pending confirmation for that email, we have sent fresh confirmation instructions."},
             status=status.HTTP_200_OK,
         )
+
+
+class AddressAutocompleteView(APIView):
+    """Backs the address-autocomplete field on registration, checkout, and
+    the account page's "add address" form. Public and unauthenticated on
+    purpose -- a guest filling in a delivery address at checkout, or someone
+    who hasn't registered yet, needs this exactly as much as a signed-in
+    customer does."""
+
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "address_lookup"
+    throttle_classes = [ScopedRateThrottle]
+
+    def get(self, request):
+        query = request.query_params.get("q", "").strip()
+        # Fewer than 3 characters is nearly always still a single letter or
+        # two by the time debouncing lets a request through, and Photon's
+        # own results get noisy (or empty) below that length anyway.
+        if len(query) < 3:
+            return Response({"results": []})
+        return Response({"results": fetch_address_suggestions(query)})
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):

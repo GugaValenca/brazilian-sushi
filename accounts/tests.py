@@ -1,13 +1,57 @@
+import json
+from urllib import error
+
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.cache import cache
 from django.urls import reverse
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from .address_lookup import fetch_address_suggestions
 from .models import Address
+from .services import send_confirmation_email
 
 User = get_user_model()
+
+
+class ConfirmationEmailContentTests(APITestCase):
+    """The confirmation email used to be a bare plain-text message with just
+    a link -- these guard the branded HTML version (dark header, gold CTA
+    button, plain-text alternative) actually renders and reaches the right
+    inbox, without pinning the exact markup so the template can still be
+    restyled freely."""
+
+    def test_sends_a_multipart_email_with_a_working_confirmation_link(self):
+        user = User(first_name="Ana", username="ana", email="ana@example.com")
+        confirmation_url = "https://braziliansushi.example.com/confirm-account?token=abc123"
+
+        send_confirmation_email(user, confirmation_url)
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["ana@example.com"])
+        self.assertEqual(message.subject, "Confirm your Brazilian Sushi account")
+
+        # Plain-text body (spam filters and text-only clients read this).
+        self.assertIn("Ana", message.body)
+        self.assertIn(confirmation_url, message.body)
+
+        # HTML alternative (what most inboxes actually render).
+        self.assertEqual(len(message.alternatives), 1)
+        html_body, mime_type = message.alternatives[0]
+        self.assertEqual(mime_type, "text/html")
+        self.assertIn("Ana", html_body)
+        self.assertIn(confirmation_url, html_body)
+        self.assertIn("Confirm My Account", html_body)
+
+    def test_falls_back_to_username_when_no_first_name_is_set(self):
+        user = User(username="noname", email="noname@example.com")
+
+        send_confirmation_email(user, "https://braziliansushi.example.com/confirm-account?token=xyz")
+
+        self.assertIn("noname", mail.outbox[0].body)
 
 
 class CustomerAdminTests(APITestCase):
@@ -571,3 +615,152 @@ class AddressDefaultAssignmentTests(APITestCase):
 
         self.assertTrue(second.data["is_default"])
         self.assertEqual(Address.objects.filter(user=self.user, is_default=True).count(), 1)
+
+
+def _mocked_photon_response(payload):
+    mock_response = MagicMock()
+    mock_response.__enter__.return_value.read.return_value = json.dumps(payload).encode("utf-8")
+    return mock_response
+
+
+class AddressAutocompleteLookupTests(APITestCase):
+    """Unit tests for the Photon-backed suggestion builder itself -- no
+    network calls, urlopen is mocked throughout."""
+
+    def test_builds_a_usable_suggestion_from_a_full_photon_feature(self):
+        payload = {
+            "features": [
+                {
+                    "properties": {
+                        "housenumber": "742",
+                        "street": "Evergreen Terrace",
+                        "city": "Springfield",
+                        "state": "Florida",
+                        "postcode": "33601",
+                        "countrycode": "US",
+                    }
+                }
+            ]
+        }
+
+        with patch("accounts.address_lookup.request.urlopen", return_value=_mocked_photon_response(payload)):
+            results = fetch_address_suggestions("742 Evergreen")
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(
+            results[0],
+            {
+                "label": "742 Evergreen Terrace, Springfield, FL 33601",
+                "line_1": "742 Evergreen Terrace",
+                "city": "Springfield",
+                "state": "FL",
+                "postal_code": "33601",
+            },
+        )
+
+    def test_drops_non_us_results(self):
+        payload = {
+            "features": [
+                {
+                    "properties": {
+                        "housenumber": "1",
+                        "street": "Rue de Paris",
+                        "city": "Paris",
+                        "state": "Ile-de-France",
+                        "postcode": "75001",
+                        "countrycode": "FR",
+                    }
+                }
+            ]
+        }
+
+        with patch("accounts.address_lookup.request.urlopen", return_value=_mocked_photon_response(payload)):
+            results = fetch_address_suggestions("Rue de Paris")
+
+        self.assertEqual(results, [])
+
+    def test_drops_results_missing_a_field_this_app_needs(self):
+        # A named place with no street number/postcode -- not a deliverable
+        # street address, so it's not useful as a suggestion here.
+        payload = {
+            "features": [
+                {"properties": {"name": "Some Park", "city": "Tampa", "state": "Florida", "countrycode": "US"}}
+            ]
+        }
+
+        with patch("accounts.address_lookup.request.urlopen", return_value=_mocked_photon_response(payload)):
+            results = fetch_address_suggestions("Some Park")
+
+        self.assertEqual(results, [])
+
+    def test_drops_a_us_state_it_cannot_map_to_a_code(self):
+        payload = {
+            "features": [
+                {
+                    "properties": {
+                        "housenumber": "5",
+                        "street": "Main St",
+                        "city": "Somewhere",
+                        "state": "Not A Real State",
+                        "postcode": "00000",
+                        "countrycode": "US",
+                    }
+                }
+            ]
+        }
+
+        with patch("accounts.address_lookup.request.urlopen", return_value=_mocked_photon_response(payload)):
+            results = fetch_address_suggestions("5 Main St")
+
+        self.assertEqual(results, [])
+
+    def test_deduplicates_identical_suggestions(self):
+        feature = {
+            "properties": {
+                "housenumber": "742",
+                "street": "Evergreen Terrace",
+                "city": "Springfield",
+                "state": "FL",
+                "postcode": "33601",
+                "countrycode": "US",
+            }
+        }
+        payload = {"features": [feature, dict(feature)]}
+
+        with patch("accounts.address_lookup.request.urlopen", return_value=_mocked_photon_response(payload)):
+            results = fetch_address_suggestions("742 Evergreen")
+
+        self.assertEqual(len(results), 1)
+
+    def test_returns_no_results_instead_of_raising_when_the_lookup_fails(self):
+        # Autocomplete is a convenience -- a flaky third-party call must
+        # never break the form it's attached to.
+        with patch("accounts.address_lookup.request.urlopen", side_effect=error.URLError("boom")):
+            results = fetch_address_suggestions("742 Evergreen")
+
+        self.assertEqual(results, [])
+
+
+class AddressAutocompleteEndpointTests(APITestCase):
+    """The API endpoint itself, unauthenticated -- a guest at checkout and
+    someone who hasn't registered yet both need this to work with no
+    account."""
+
+    def test_short_queries_are_rejected_without_calling_the_lookup(self):
+        with patch("accounts.views.fetch_address_suggestions") as mocked_lookup:
+            response = self.client.get("/api/accounts/address-lookup/", {"q": "ab"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["results"], [])
+        mocked_lookup.assert_not_called()
+
+    def test_returns_suggestions_from_the_lookup_for_an_anonymous_caller(self):
+        fake_results = [
+            {"label": "742 Evergreen Terrace, Springfield, FL 33601", "line_1": "742 Evergreen Terrace", "city": "Springfield", "state": "FL", "postal_code": "33601"}
+        ]
+        with patch("accounts.views.fetch_address_suggestions", return_value=fake_results) as mocked_lookup:
+            response = self.client.get("/api/accounts/address-lookup/", {"q": "742 Evergreen"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["results"], fake_results)
+        mocked_lookup.assert_called_once_with("742 Evergreen")
