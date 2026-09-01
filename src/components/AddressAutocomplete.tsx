@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { fetchAddressSuggestions, type AddressSuggestion } from "@/lib/address";
+import { fetchAddressSuggestions, resolveSuggestionLine1, type AddressSuggestion } from "@/lib/address";
 
 interface AddressAutocompleteProps {
   id: string;
@@ -83,7 +83,7 @@ const AddressAutocomplete = ({
   }, []);
 
   const selectSuggestion = (suggestion: AddressSuggestion) => {
-    onSelect(suggestion);
+    onSelect({ ...suggestion, line_1: resolveSuggestionLine1(suggestion, value) });
     setIsOpen(false);
     setSuggestions([]);
   };

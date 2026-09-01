@@ -68,13 +68,22 @@ def _feature_to_suggestion(feature):
     state = _state_to_code(properties.get("state", ""))
     postal_code = properties.get("postcode", "")
 
-    # A result missing a piece this app actually needs (a park, a bare city,
-    # a state Photon didn't give us a code for) isn't a usable suggestion.
-    if not (line_1 and city and state and postal_code):
+    # Requiring a matched housenumber+street here (as this originally did)
+    # threw away the large majority of real, ordinary addresses: Photon's
+    # top results for a typical "<number> <street>, <city>" query are very
+    # often the city/postal-code area itself, with no housenumber or street
+    # at all, rather than a precise street-level match -- OSM's address-point
+    # coverage varies a lot by region, so an exact street name a customer
+    # typed often just isn't indexed under that name. City + state + postal
+    # code is what's actually reliable, so that's the bar now; line_1 is
+    # filled in as a bonus when Photon does have it, and left blank
+    # otherwise so the caller keeps whatever street text the customer
+    # already typed instead of it being silently overwritten with nothing.
+    if not (city and state and postal_code):
         return None
 
     return {
-        "label": f"{line_1}, {city}, {state} {postal_code}",
+        "label": f"{line_1}, {city}, {state} {postal_code}" if line_1 else f"{city}, {state} {postal_code}",
         "line_1": line_1,
         "city": city,
         "state": state,

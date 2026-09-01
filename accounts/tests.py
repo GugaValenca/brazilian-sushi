@@ -658,6 +658,27 @@ class AddressAutocompleteLookupTests(APITestCase):
             },
         )
 
+    def test_builds_a_locality_only_suggestion_when_photon_has_no_matching_street(self):
+        # By far the most common real-world case: Photon's top match for an
+        # ordinary address is often the city/postal-code area itself, with
+        # no housenumber or street match at all. This must still be a
+        # usable suggestion (city/state/zip are worth autofilling on their
+        # own) instead of being silently dropped, which is what made
+        # autocomplete appear broken for most real addresses.
+        payload = {
+            "features": [
+                {"properties": {"city": "Boston", "state": "Massachusetts", "postcode": "02130", "countrycode": "US"}}
+            ]
+        }
+
+        with patch("accounts.address_lookup.request.urlopen", return_value=_mocked_photon_response(payload)):
+            results = fetch_address_suggestions("55 Oak Avenue Boston")
+
+        self.assertEqual(
+            results,
+            [{"label": "Boston, MA 02130", "line_1": "", "city": "Boston", "state": "MA", "postal_code": "02130"}],
+        )
+
     def test_drops_non_us_results(self):
         payload = {
             "features": [
@@ -680,8 +701,8 @@ class AddressAutocompleteLookupTests(APITestCase):
         self.assertEqual(results, [])
 
     def test_drops_results_missing_a_field_this_app_needs(self):
-        # A named place with no street number/postcode -- not a deliverable
-        # street address, so it's not useful as a suggestion here.
+        # A named place with no postal code at all -- city/state alone
+        # aren't enough to fill in a usable address.
         payload = {
             "features": [
                 {"properties": {"name": "Some Park", "city": "Tampa", "state": "Florida", "countrycode": "US"}}
